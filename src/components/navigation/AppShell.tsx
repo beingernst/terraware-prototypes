@@ -68,7 +68,7 @@ export function AppShell({
           minHeight: `calc(100vh - ${TOP_NAV_HEIGHT}px)`,
           px: 3,
           py: 2,
-          width: '100%',
+          minWidth: 0,
         }}
       >
         {children}

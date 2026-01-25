@@ -196,30 +196,65 @@ Production-matching dashboard with:
 - Mobile app download banner
 - Accelerator footer banner
 
-### 2. Planting Planning (`/prototypes/planting-planning`) **NEW**
-Interactive Gantt-chart style planting season planner:
+### 2. Planting Planning (`/prototypes/planting-planning`)
+Interactive Gantt-chart style planting season planner with three views:
 
-**Features:**
-- Year tabs (2025-2028) for multi-year planning
-- Expandable site rows showing zones
+**View Navigation:**
+- "Planting Plan: [View]" dropdown in header
+- Three views: Overview (placeholder), Schedule (implemented), Species (initial implementation - needs UX work)
+
+**Schedule View Features:**
+- Dynamic year management - add/remove years via +/- buttons
+- Year tabs positioned directly above table (removes youngest year with confirmation if has data)
+- Month headers show year (e.g., "Jan '25", "Feb '25")
+- **Sites with 0-1 zones**: directly editable without expanding (no expand arrow)
+- **Sites with 2+ zones**: expandable to show individual zone scheduling
 - Click-to-select month cells for planting periods
-- Site rows show aggregate (combined zones) in darker green
-- Zone rows show individual schedules in lighter green
+- Site rows show aggregate (combined zones) in darker green (#4A7C59)
+- Zone rows show individual schedules in lighter green (#7DA88A)
+- **Wet season indicators** - subtle blue cell background shading
+  - Site rows: rgba(181, 212, 232, 0.15)
+  - Zone rows: rgba(181, 212, 232, 0.08) - more desaturated
+  - Wet seasons are per-site (stored in `site.wetSeasonMonths`)
+- Darker borders between sites (#C8C5C0) for clear visual separation
+- No bottom border on last zone row or collapsed site rows
 - Click zone name to open map modal showing zone locations
 - Sticky header with Save/Discard buttons
 - "Unsaved changes" indicator
+- Legend above the Gantt chart (site aggregate, zone planting, wet season)
 - Summary section with condensed date ranges ("March through May")
 
 **Key Components:**
 - `PlanningHome.tsx` - Main component with all functionality
 - Gantt chart grid with CSS Grid layout
 - MUI Modal for zone map visualization
+- MUI Menu for view selection dropdown
 - State tracking for unsaved changes
+- Confirmation modal for year deletion
 
 **Colors:**
 ```typescript
-const SITE_BAR_BG = '#4A7C59';   // Darker green for site aggregate
-const ZONE_BAR_BG = '#7DA88A';   // Lighter green for zone bars
+const SITE_BAR_BG = '#4A7C59';           // Darker green for site aggregate
+const ZONE_BAR_BG = '#7DA88A';           // Lighter green for zone bars
+const SITE_BORDER_COLOR = '#C8C5C0';     // Darker border between sites
+const WET_SEASON_BG = 'rgba(181, 212, 232, 0.15)';      // Site wet season
+const WET_SEASON_ZONE_BG = 'rgba(181, 212, 232, 0.08)'; // Zone wet season
+```
+
+**Data Structure - PlantingSite:**
+```typescript
+interface PlantingSite {
+  id: number;
+  name: string;
+  location: string;
+  area: string;
+  zones: Zone[];              // Can be empty array (0 zones)
+  wetSeasonMonths: Set<number>; // 0-11, set on another page
+}
+
+// Sites with 0 zones use 'site-{id}' as schedule key
+// Sites with 1 zone use zone.id directly (editable without expanding)
+// Sites with 2+ zones must be expanded to edit individual zones
 ```
 
 ---
@@ -259,21 +294,118 @@ npx tsc --noEmit   # Type check without building
 
 ---
 
+**Species View (Initial Implementation - Needs UX Refinement):**
+- Expandable site list showing zones for species assignment
+- Sites with zones: expand to see individual zone species tables
+- Sites without zones (Northern Reserve): show species table directly
+- Each zone has a SpeciesTable component with:
+  - Table of assigned species (common name, scientific name, quantity)
+  - Editable quantity input fields
+  - Delete button to remove species
+  - "Add Species" button with dropdown of unassigned species
+- Site-level aggregates: total species count and total plants
+- Grand total summary at bottom (unique species across all sites, total plants)
+- Mock data: 10 available species (Teak, Mahogany, Jackfruit, etc.)
+- **Known issue**: UX needs work - the current interface is functional but not intuitive
+
+**Species Data Structures:**
+```typescript
+interface Species {
+  id: string;
+  commonName: string;
+  scientificName: string;
+}
+
+interface SpeciesAssignment {
+  speciesId: string;
+  quantity: number;
+}
+
+// Species assignments per zone: zoneId -> assignments[]
+type SpeciesSchedule = Record<string, SpeciesAssignment[]>;
+```
+
+---
+
 ## Future Exploration (Next Session)
 
 For the Planting Planning prototype:
 
-1. **Wet Seasons** - Add ability to indicate wet/dry seasons and how they affect planting windows
-2. **Species Selection** - Specify which species (by quantity) need to be planted each season
+1. **Species View UX Improvements** - The current species planning interface needs better UX design
+2. **Wet Season Editing Page** - Create a separate page/modal to edit wet season months per site
 3. **Planting Density Calculator** - Calculate how many plants needed to achieve target density
 4. **Multi-Year Seasons** - Planning seasons that span across year boundaries
 5. **Repeating Seasons** - Copy/repeat seasons across multiple years
+6. **Connect Species to Schedule** - Link species quantities to specific planting periods
 
 ---
 
 ## Session History
 
-### Session 3 (Current) - Planting Planning Prototype
+### Session 6 (Current) - Species Planning View
+- **Species View initial implementation**:
+  - Added Species interface, SpeciesAssignment interface, SpeciesSchedule type
+  - Created mock availableSpecies list (10 tropical species)
+  - Created createInitialSpeciesSchedule() with sample assignments
+  - Built SpeciesTable component for zone-level species management
+  - Expandable site list showing zones (similar pattern to Schedule view)
+  - Each zone has its own species table with add/edit/remove capabilities
+  - Site-level and grand total summaries
+- **Species management functions**:
+  - addSpeciesToZone, updateSpeciesQuantity, removeSpeciesFromZone
+  - getZoneSpecies, getZoneTotalPlants, getSiteTotalPlants
+  - getSiteSpeciesAggregate, getUnassignedSpecies
+- **Known UX issues to address next session**:
+  - Interface is functional but not intuitive
+  - Need to improve the overall user experience
+
+### Session 5 - Enhanced Wet Seasons & View Navigation
+- **Wet season visual refinement**:
+  - Changed from water drop icons to subtle blue cell background shading
+  - Site rows: rgba(181, 212, 232, 0.15) - subtle blue tint
+  - Zone rows: rgba(181, 212, 232, 0.08) - more desaturated
+  - Applied to both site and zone rows for consistency
+- **Improved site border hierarchy**:
+  - Darker borders between sites (#C8C5C0) instead of thicker borders
+  - Removed bottom border on last zone row in each site
+  - Removed bottom border on collapsed site rows
+  - Creates clearer visual separation between different sites
+- **Sites with 0-1 zones made directly editable**:
+  - No expand/collapse arrow shown
+  - Month cells are directly clickable to toggle planting periods
+  - Site row acts like a zone row (hover effects, cursor pointer)
+  - Northern Reserve changed to have 0 zones for demo
+- **Schedule tracking for sites without zones**:
+  - Uses `site-{id}` as key for sites with 0 zones
+  - Sites with 1 zone use zone.id (acts as if site-level)
+  - Summary view handles both patterns correctly
+- **Dynamic year management**:
+  - Year tabs moved directly above table (below legend)
+  - Add year (+) button adds next sequential year
+  - Remove year (-) button removes youngest/most recent year
+  - Confirmation modal shown when deleting year with existing data
+  - Years are now dynamic state (not hardcoded 2025-2028)
+- **View navigation system**:
+  - Added "Planting Plan: [View]" dropdown in sticky header
+  - Three views: Overview (first), Schedule, Species
+  - Schedule view is current implementation
+  - Overview and Species are placeholder cards for future development
+- **Layout fixes**:
+  - Fixed side-scrolling issue (added minWidth: 0 to AppShell)
+  - Page uses full width (maxWidth={false}) for Gantt chart
+
+### Session 4 - Wet Season Indicators
+- Initialized git repository and created initial commit
+- Added wet season indicators to Planting Planning prototype:
+  - Month headers now show year (e.g., "Jan '25")
+  - Wet seasons are per-site (different sites can have different wet seasons)
+  - Small water drop icons appear at bottom of site row cells for wet months
+  - Subtle styling: 10px icon, light blue (#B5D4E8), 80% opacity
+  - Legend moved above the Gantt chart
+  - Wet season editing will happen on a separate page (not this table)
+- Explored and removed editable wet season row (decided editing belongs elsewhere)
+
+### Session 3 - Planting Planning Prototype
 - Updated default Sidebar to match production navigation structure
 - Added ACCELERATOR section, expandable items, badges, dividers, language selector
 - Made Sidebar fully configurable via `sections` prop
@@ -305,4 +437,4 @@ For the Planting Planning prototype:
 
 ---
 
-*Last updated: Session 3 - Planting Planning prototype with zone-level scheduling*
+*Last updated: Session 6 - Species Planning view initial implementation (needs UX refinement)*
