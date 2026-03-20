@@ -2,6 +2,12 @@
 
 Rapid prototyping environment for Terraware product development. Build interactive prototypes that match production visuals using the same design system.
 
+## Prerequisites
+
+- **Node.js 20+** (LTS) — if you use [nvm](https://github.com/nvm-sh/nvm), [fnm](https://github.com/Schniz/fnm), or [mise](https://mise.jdx.dev/), just run `nvm use` / `fnm use` / `mise install` and the `.node-version` file will be picked up automatically
+- **npm 9+** (ships with Node 20)
+- Optionally, [Claude Code](https://claude.ai/claude-code) — the repo includes a `CLAUDE.md` so Claude Code automatically understands project conventions
+
 ## Quick Start
 
 ```bash
@@ -76,6 +82,16 @@ Or just tell Claude Code:
 - `useDeviceInfo` - Responsive breakpoint detection
 
 See [docs/COMPONENT_GUIDE.md](docs/COMPONENT_GUIDE.md) for full details.
+
+## Existing Prototypes
+
+| Prototype | URL | Description |
+|-----------|-----|-------------|
+| Example Dashboard | `/prototypes/example-dashboard` | Production-matching dashboard with plants, species, and seeds cards |
+| Planting Planning | `/prototypes/planting-planning` | Gantt-chart planting season planner with multi-year scheduling |
+| Planting Planning 2 | `/prototypes/planting-planning-2` | Iteration on planting planning |
+| Planting Planning 3 | `/prototypes/planting-planning-3` | Further iteration on planting planning |
+| ME Test Prototype | `/prototypes/me-test-prototype` | Test prototype |
 
 ## Design System
 
