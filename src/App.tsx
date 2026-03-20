@@ -19,6 +19,8 @@ import { prototypeTheme } from './design-system/theme';
 import ExampleDashboard from './prototypes/example-dashboard';
 import METestPrototype from './prototypes/me-test-prototype';
 import PlantingPlanningPrototype from './prototypes/planting-planning';
+import PlantingPlanning2Prototype from './prototypes/planting-planning-2';
+import PlantingPlanning3Prototype from './prototypes/planting-planning-3';
 
 function App() {
   return (
@@ -32,6 +34,8 @@ function App() {
             <Route path="/prototypes/example-dashboard/*" element={<ExampleDashboard />} />
             <Route path="/prototypes/me-test-prototype/*" element={<METestPrototype />} />
             <Route path="/prototypes/planting-planning/*" element={<PlantingPlanningPrototype />} />
+            <Route path="/prototypes/planting-planning-2/*" element={<PlantingPlanning2Prototype />} />
+            <Route path="/prototypes/planting-planning-3/*" element={<PlantingPlanning3Prototype />} />
           </Routes>
         </BrowserRouter>
       </ThemeProvider>

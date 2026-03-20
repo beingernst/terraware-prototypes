@@ -1,0 +1,927 @@
+/**
+ * Plan Screen Component
+ *
+ * Shows either:
+ * 1. Empty state with "Set Up a Plan" button (when no seasons exist)
+ * 2. Gantt chart interface for managing planting seasons (after setup)
+ *
+ * Features:
+ * - Single planting site (Montanha do Sul) with zones
+ * - Visual month selection via Gantt chart
+ * - Add/edit planting seasons
+ * - Click zone row to navigate to season detail
+ */
+
+import { useState, useMemo, useCallback } from "react";
+import { useNavigate } from "react-router";
+import { Page } from "@/components/layout";
+import { Card } from "@/components/core";
+import {
+  Box,
+  Typography,
+  Select,
+  MenuItem,
+  FormControl,
+  Modal,
+  TextField,
+  Checkbox,
+  FormControlLabel,
+  IconButton,
+  Tabs,
+  Tab,
+} from "@mui/material";
+import { Button } from "@terraware/web-components";
+import {
+  LocationOn as LocationIcon,
+  Close as CloseIcon,
+  KeyboardArrowDown,
+  KeyboardArrowRight,
+  Add as AddIcon,
+  Remove as RemoveIcon,
+} from "@mui/icons-material";
+import {
+  mockSite,
+  MONTHS,
+  MONTH_NAMES_FULL,
+  formatMonthRanges,
+  getSelectionPosition,
+  getBorderRadiusForPosition,
+} from "./mockData";
+import type { PlantingSeason } from "./mockData";
+
+// Colors
+const HEADER_BG = "#F5F5F0";
+const SITE_BAR_BG = "#4A7C59"; // Darker green for site aggregate
+const ZONE_BAR_BG = "#7DA88A"; // Lighter green for zone bars
+const ZONE_BAR_HOVER = "#6B9A7A";
+const BORDER_COLOR = "#E8E5E0";
+const SITE_BORDER_COLOR = "#C8C5C0"; // Darker border between sites
+const TEXT_PRIMARY = "#3A4445";
+const TEXT_SECONDARY = "#6B7165";
+const ZONE_ROW_BG = "#FAFAFA";
+const WET_SEASON_BG = "rgba(181, 212, 232, 0.15)"; // Light blue for wet season months
+const WET_SEASON_ZONE_BG = "rgba(181, 212, 232, 0.08)"; // More desaturated for zone rows
+
+// Type for tracking selected months per zone per year
+// Structure: { year: { zoneId: Set<monthIndex> } }
+type PlantingSchedule = Record<number, Record<string, Set<number>>>;
+
+export default function PlanScreen() {
+  const navigate = useNavigate();
+
+  // State for whether user has started planning
+  const [hasPlan, setHasPlan] = useState(false);
+
+  // Onboarding flow state
+  const [isOnboarding, setIsOnboarding] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState(1);
+  const [onboardingYear, setOnboardingYear] = useState<number | 'started' | null>(null);
+  const [onboardingSites, setOnboardingSites] = useState<Set<number>>(new Set());
+
+  // Year selection
+  const [selectedYear, setSelectedYear] = useState(2025);
+
+  // Planting schedule: tracks which months are selected for each zone
+  const [schedule, setSchedule] = useState<PlantingSchedule>({
+    2025: {},
+    2026: {},
+  });
+
+  // Planting seasons
+  const [seasons, setSeasons] = useState<PlantingSeason[]>([]);
+
+  // Modal state for adding seasons
+  const [addSeasonModalOpen, setAddSeasonModalOpen] = useState(false);
+  const [newSeasonName, setNewSeasonName] = useState("");
+  const [newSeasonStartMonth, setNewSeasonStartMonth] = useState(0);
+  const [newSeasonEndMonth, setNewSeasonEndMonth] = useState(2);
+  const [newSeasonZones, setNewSeasonZones] = useState<Set<string>>(new Set());
+
+  // Handle month cell click
+  const handleMonthClick = (zoneId: string, monthIndex: number) => {
+    setSchedule((prev) => {
+      const newSchedule = { ...prev };
+      const yearSchedule = { ...prev[selectedYear] };
+      const zoneMonths = new Set(prev[selectedYear]?.[zoneId] || []);
+
+      if (zoneMonths.has(monthIndex)) {
+        zoneMonths.delete(monthIndex);
+      } else {
+        zoneMonths.add(monthIndex);
+      }
+
+      yearSchedule[zoneId] = zoneMonths;
+      newSchedule[selectedYear] = yearSchedule;
+      return newSchedule;
+    });
+  };
+
+  // Check if a month is selected for a zone
+  const isMonthSelected = (zoneId: string, monthIndex: number): boolean => {
+    return schedule[selectedYear]?.[zoneId]?.has(monthIndex) || false;
+  };
+
+  // Handle add season
+  const handleAddSeason = () => {
+    if (!newSeasonName.trim() || newSeasonZones.size === 0) return;
+
+    const newSeason: PlantingSeason = {
+      id: `season-${Date.now()}`,
+      name: newSeasonName,
+      startMonth: newSeasonStartMonth,
+      endMonth: newSeasonEndMonth,
+      year: selectedYear,
+      zoneIds: Array.from(newSeasonZones),
+    };
+
+    setSeasons([...seasons, newSeason]);
+
+    // Pre-select months on Gantt for the new season
+    setSchedule((prev) => {
+      const newSchedule = { ...prev };
+      const yearSchedule = { ...prev[selectedYear] };
+
+      newSeasonZones.forEach((zoneId) => {
+        const zoneMonths = new Set(prev[selectedYear]?.[zoneId] || []);
+
+        // Add all months in the range
+        for (let m = newSeasonStartMonth; m <= newSeasonEndMonth; m++) {
+          zoneMonths.add(m);
+        }
+
+        yearSchedule[zoneId] = zoneMonths;
+      });
+
+      newSchedule[selectedYear] = yearSchedule;
+      return newSchedule;
+    });
+
+    // Reset modal state
+    setAddSeasonModalOpen(false);
+    setNewSeasonName("");
+    setNewSeasonStartMonth(0);
+    setNewSeasonEndMonth(2);
+    setNewSeasonZones(new Set());
+  };
+
+  // Handle zone checkbox toggle in modal
+  const handleZoneToggle = (zoneId: string) => {
+    setNewSeasonZones((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(zoneId)) {
+        newSet.delete(zoneId);
+      } else {
+        newSet.add(zoneId);
+      }
+      return newSet;
+    });
+  };
+
+  // Handle zone row click - navigate to season detail
+  const handleZoneRowClick = (zoneId: string) => {
+    // Find the season that includes this zone
+    const season = seasons.find((s) => s.zoneIds.includes(zoneId));
+    if (season) {
+      navigate(`/prototypes/planting-planning-3/plan/${season.id}`);
+    }
+  };
+
+  // Get selected months for a zone (for display summary)
+  const getSelectedMonthsForZone = (zoneId: string): number[] => {
+    const months = schedule[selectedYear]?.[zoneId];
+    return months ? Array.from(months).sort((a, b) => a - b) : [];
+  };
+
+  // Handle site toggle in onboarding
+  const handleSiteToggle = (siteId: number) => {
+    setOnboardingSites((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(siteId)) {
+        newSet.delete(siteId);
+      } else {
+        newSet.add(siteId);
+      }
+      return newSet;
+    });
+  };
+
+  // Complete onboarding
+  const completeOnboarding = () => {
+    setIsOnboarding(false);
+    setHasPlan(true);
+    if (typeof onboardingYear === 'number') {
+      setSelectedYear(onboardingYear);
+    }
+  };
+
+  // Empty state view
+  if (!hasPlan && !isOnboarding) {
+    return (
+      <Page title="Plan" maxWidth={false}>
+        <Box
+          sx={{
+            p: 8,
+            textAlign: "center",
+            backgroundColor: "#FAFAFA",
+            borderRadius: "8px",
+            border: `1px dashed ${BORDER_COLOR}`,
+            minHeight: "400px",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            maxWidth: "600px",
+            mx: "auto",
+            mt: 4,
+          }}
+        >
+          {/* Map pin illustration placeholder */}
+          <Box
+            sx={{
+              width: 120,
+              height: 120,
+              mb: 3,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <LocationIcon
+              sx={{ fontSize: 80, color: "#FF6B35", opacity: 0.8 }}
+            />
+          </Box>
+
+          <Typography
+            sx={{
+              color: TEXT_PRIMARY,
+              fontSize: "18px",
+              fontWeight: 500,
+              mb: 2,
+            }}
+          >
+            Start Your Planting Plan
+          </Typography>
+
+          <Typography
+            sx={{
+              color: TEXT_SECONDARY,
+              fontSize: "14px",
+              mb: 4,
+            }}
+          >
+            Set your planting seasons up for success with tools to plan where
+            you'll plant and what you'll need.
+          </Typography>
+
+          <Button
+            label="Start My Plan"
+            onClick={() => setIsOnboarding(true)}
+            type="productive"
+            priority="primary"
+            size="medium"
+          />
+        </Box>
+      </Page>
+    );
+  }
+
+  // Onboarding flow
+  if (isOnboarding) {
+    return (
+      <Page title="Plan" maxWidth={false}>
+        {/* Progress indicator */}
+        <Box
+          sx={{
+            mb: 4,
+            pb: 3,
+            borderBottom: `1px solid ${BORDER_COLOR}`,
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+            {[
+              { num: 1, label: 'Start' },
+              { num: 2, label: 'Add Planting Seasons' },
+              { num: 3, label: 'Add Species' },
+            ].map((step, index) => (
+              <Box key={step.num} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: '50%',
+                      backgroundColor: onboardingStep >= step.num ? '#4A7C59' : '#E8E5E0',
+                      color: onboardingStep >= step.num ? '#FFF' : TEXT_SECONDARY,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '14px',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {step.num}
+                  </Box>
+                  <Typography
+                    sx={{
+                      fontSize: '14px',
+                      fontWeight: onboardingStep === step.num ? 600 : 400,
+                      color: onboardingStep === step.num ? TEXT_PRIMARY : TEXT_SECONDARY,
+                    }}
+                  >
+                    {step.label}
+                  </Typography>
+                </Box>
+                {index < 2 && (
+                  <Box
+                    sx={{
+                      width: 40,
+                      height: 2,
+                      backgroundColor: onboardingStep > step.num ? '#4A7C59' : '#E8E5E0',
+                    }}
+                  />
+                )}
+              </Box>
+            ))}
+          </Box>
+        </Box>
+
+        {/* Content container */}
+        <Box
+          sx={{
+            maxWidth: '700px',
+            mx: 'auto',
+            mt: 6,
+          }}
+        >
+          {/* Step 1: Select start year */}
+          {onboardingStep === 1 && (
+            <Box>
+              <Typography
+                sx={{
+                  fontSize: '24px',
+                  fontWeight: 600,
+                  color: TEXT_PRIMARY,
+                  mb: 2,
+                  textAlign: 'center',
+                }}
+              >
+                Let's start planning your planting
+              </Typography>
+              <Typography
+                sx={{
+                  fontSize: '15px',
+                  color: TEXT_SECONDARY,
+                  mb: 1,
+                  textAlign: 'center',
+                }}
+              >
+                First, we'll ask you a few questions to customize your plan.
+              </Typography>
+              <Typography
+                sx={{
+                  fontSize: '14px',
+                  color: TEXT_SECONDARY,
+                  mb: 5,
+                  textAlign: 'center',
+                  fontStyle: 'italic',
+                }}
+              >
+                You can change any part of this later.
+              </Typography>
+
+              <Typography
+                sx={{
+                  fontSize: '18px',
+                  fontWeight: 500,
+                  color: TEXT_PRIMARY,
+                  mb: 3,
+                }}
+              >
+                First, when do you plan to start?
+              </Typography>
+
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {[2026, 2027, 2028, 2029, 2030].map((year) => (
+                  <Box
+                    key={year}
+                    onClick={() => {
+                      setOnboardingYear(year);
+                      setOnboardingStep(2);
+                    }}
+                    sx={{
+                      p: 3,
+                      border: `2px solid ${onboardingYear === year ? '#4A7C59' : BORDER_COLOR}`,
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      backgroundColor: onboardingYear === year ? '#F0F4F1' : '#FFF',
+                      transition: 'all 0.2s',
+                      '&:hover': {
+                        borderColor: '#4A7C59',
+                        backgroundColor: '#F0F4F1',
+                      },
+                    }}
+                  >
+                    <Typography sx={{ fontSize: '16px', fontWeight: 500, color: TEXT_PRIMARY }}>
+                      {year}
+                    </Typography>
+                  </Box>
+                ))}
+                <Box
+                  onClick={() => {
+                    setOnboardingYear('started');
+                    setOnboardingStep(2);
+                  }}
+                  sx={{
+                    p: 3,
+                    border: `2px solid ${onboardingYear === 'started' ? '#4A7C59' : BORDER_COLOR}`,
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    backgroundColor: onboardingYear === 'started' ? '#F0F4F1' : '#FFF',
+                    transition: 'all 0.2s',
+                    '&:hover': {
+                      borderColor: '#4A7C59',
+                      backgroundColor: '#F0F4F1',
+                    },
+                  }}
+                >
+                  <Typography sx={{ fontSize: '16px', fontWeight: 500, color: TEXT_PRIMARY }}>
+                    I've already started
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
+          )}
+
+          {/* Step 2: Select planting sites */}
+          {onboardingStep === 2 && (
+            <Box>
+              <Typography
+                sx={{
+                  fontSize: '24px',
+                  fontWeight: 600,
+                  color: TEXT_PRIMARY,
+                  mb: 5,
+                  textAlign: 'center',
+                }}
+              >
+                Select all the planting sites you think you will plant in{' '}
+                {typeof onboardingYear === 'number' ? onboardingYear : 'the near future'}
+              </Typography>
+
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 4 }}>
+                {/* Mock multiple sites - in real app would come from data */}
+                {[
+                  { id: 1, name: 'Montanha do Sul', location: 'South Region, Brazil', area: '292 ha' },
+                  { id: 2, name: 'Vale Verde', location: 'Central Region, Brazil', area: '185 ha' },
+                  { id: 3, name: 'Floresta Norte', location: 'North Region, Brazil', area: '420 ha' },
+                ].map((site) => (
+                  <Box
+                    key={site.id}
+                    onClick={() => handleSiteToggle(site.id)}
+                    sx={{
+                      p: 3,
+                      border: `2px solid ${onboardingSites.has(site.id) ? '#4A7C59' : BORDER_COLOR}`,
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      backgroundColor: onboardingSites.has(site.id) ? '#F0F4F1' : '#FFF',
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 2,
+                      '&:hover': {
+                        borderColor: '#4A7C59',
+                        backgroundColor: '#F0F4F1',
+                      },
+                    }}
+                  >
+                    <Checkbox
+                      checked={onboardingSites.has(site.id)}
+                      sx={{
+                        '& .MuiSvgIcon-root': { fontSize: 28 },
+                      }}
+                    />
+                    <Box sx={{ flex: 1 }}>
+                      <Typography sx={{ fontSize: '16px', fontWeight: 500, color: TEXT_PRIMARY }}>
+                        {site.name}
+                      </Typography>
+                      <Typography sx={{ fontSize: '14px', color: TEXT_SECONDARY }}>
+                        {site.location} • {site.area}
+                      </Typography>
+                    </Box>
+                  </Box>
+                ))}
+              </Box>
+
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, mt: 4 }}>
+                <Button
+                  label="Back"
+                  onClick={() => setOnboardingStep(1)}
+                  type="passive"
+                />
+                <Button
+                  label="Continue to Plan"
+                  onClick={completeOnboarding}
+                  type="productive"
+                  priority="primary"
+                  disabled={onboardingSites.size === 0}
+                />
+              </Box>
+            </Box>
+          )}
+        </Box>
+      </Page>
+    );
+  }
+
+  // Gantt chart view
+  return (
+    <Page title="Plan" maxWidth={false}>
+      {/* Header with site selector and Add Season button */}
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 3,
+          pb: 2,
+          borderBottom: `1px solid ${BORDER_COLOR}`,
+        }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <Typography
+            sx={{ fontSize: "13px", color: TEXT_SECONDARY, fontWeight: 500 }}
+          >
+            Planting Site
+          </Typography>
+          <FormControl size="small">
+            <Select
+              value={mockSite.id}
+              sx={{
+                fontSize: "14px",
+                minWidth: "200px",
+              }}
+            >
+              <MenuItem value={mockSite.id}>{mockSite.name}</MenuItem>
+            </Select>
+          </FormControl>
+        </Box>
+
+        <Button
+          label="Add Planting Season"
+          onClick={() => setAddSeasonModalOpen(true)}
+          type="productive"
+          priority="primary"
+          icon="plus"
+        />
+      </Box>
+
+      {/* Year selector */}
+      <Box sx={{ mb: 3, display: "flex", gap: 2, alignItems: "center" }}>
+        <Typography
+          sx={{ fontSize: "13px", color: TEXT_SECONDARY, fontWeight: 500 }}
+        >
+          Year:
+        </Typography>
+        <FormControl size="small">
+          <Select
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(Number(e.target.value))}
+            sx={{ fontSize: "14px", minWidth: "120px" }}
+          >
+            <MenuItem value={2025}>2025</MenuItem>
+            <MenuItem value={2026}>2026</MenuItem>
+          </Select>
+        </FormControl>
+      </Box>
+
+      {/* Gantt Chart */}
+      <Box
+        sx={{
+          border: `1px solid ${BORDER_COLOR}`,
+          borderRadius: "8px",
+          overflow: "hidden",
+          backgroundColor: "#FFF",
+        }}
+      >
+        {/* Header Row */}
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: "280px repeat(12, 1fr)",
+            backgroundColor: HEADER_BG,
+            borderBottom: `1px solid ${BORDER_COLOR}`,
+          }}
+        >
+          <Box sx={{ p: 2, borderRight: `1px solid ${BORDER_COLOR}` }}>
+            <Typography
+              sx={{ fontSize: "13px", fontWeight: 600, color: TEXT_PRIMARY }}
+            >
+              Zone
+            </Typography>
+          </Box>
+          {MONTHS.map((month, idx) => (
+            <Box
+              key={month}
+              sx={{
+                p: 2,
+                textAlign: "center",
+                borderRight: idx < 11 ? `1px solid ${BORDER_COLOR}` : "none",
+              }}
+            >
+              <Typography
+                sx={{ fontSize: "12px", fontWeight: 500, color: TEXT_PRIMARY }}
+              >
+                {month}
+              </Typography>
+            </Box>
+          ))}
+        </Box>
+
+        {/* Zone Rows */}
+        {mockSite.zones.map((zone) => {
+          const selectedMonths = getSelectedMonthsForZone(zone.id);
+
+          return (
+            <Box
+              key={zone.id}
+              sx={{
+                display: "grid",
+                gridTemplateColumns: "280px repeat(12, 1fr)",
+                borderBottom: `1px solid ${BORDER_COLOR}`,
+                "&:last-child": { borderBottom: "none" },
+                "&:hover": { backgroundColor: ZONE_ROW_BG },
+              }}
+            >
+              {/* Zone label */}
+              <Box
+                sx={{
+                  p: 2,
+                  borderRight: `1px solid ${BORDER_COLOR}`,
+                  cursor: "pointer",
+                }}
+                onClick={() => handleZoneRowClick(zone.id)}
+              >
+                <Typography
+                  sx={{
+                    fontSize: "14px",
+                    fontWeight: 500,
+                    color: TEXT_PRIMARY,
+                  }}
+                >
+                  {zone.name}
+                </Typography>
+                <Typography sx={{ fontSize: "12px", color: TEXT_SECONDARY }}>
+                  {zone.area} ha
+                </Typography>
+                {selectedMonths.length > 0 && (
+                  <Typography
+                    sx={{ fontSize: "11px", color: TEXT_SECONDARY, mt: 0.5 }}
+                  >
+                    {formatMonthRanges(selectedMonths)}
+                  </Typography>
+                )}
+              </Box>
+
+              {/* Month cells */}
+              {MONTHS.map((_, monthIndex) => {
+                const isSelected = isMonthSelected(zone.id, monthIndex);
+                const isWetMonth = mockSite.wetSeasonMonths.has(monthIndex);
+                const position = getSelectionPosition(
+                  (mi) => isMonthSelected(zone.id, mi),
+                  monthIndex,
+                );
+                const borderRadius = getBorderRadiusForPosition(position);
+
+                return (
+                  <Box
+                    key={monthIndex}
+                    sx={{
+                      p: 1,
+                      borderRight:
+                        monthIndex < 11 ? `1px solid ${BORDER_COLOR}` : "none",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: isWetMonth ? WET_SEASON_BG : "transparent",
+                      "&:hover": {
+                        backgroundColor: isSelected
+                          ? ZONE_BAR_HOVER
+                          : isWetMonth
+                            ? "rgba(181, 212, 232, 0.3)"
+                            : "rgba(125, 168, 138, 0.2)",
+                      },
+                    }}
+                    onClick={() => handleMonthClick(zone.id, monthIndex)}
+                  >
+                    {isSelected && (
+                      <Box
+                        sx={{
+                          width: "100%",
+                          height: "32px",
+                          backgroundColor: ZONE_BAR_BG,
+                          borderRadius,
+                          transition: "background-color 0.2s",
+                        }}
+                      />
+                    )}
+                  </Box>
+                );
+              })}
+            </Box>
+          );
+        })}
+      </Box>
+
+      {/* Season list (if any seasons exist) */}
+      {seasons.length > 0 && (
+        <Box sx={{ mt: 4 }}>
+          <Typography
+            sx={{
+              fontSize: "14px",
+              fontWeight: 600,
+              mb: 2,
+              color: TEXT_PRIMARY,
+            }}
+          >
+            Planting Seasons ({selectedYear})
+          </Typography>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+            {seasons
+              .filter((s) => s.year === selectedYear)
+              .map((season) => (
+                <Box
+                  key={season.id}
+                  sx={{
+                    p: 2,
+                    border: `1px solid ${BORDER_COLOR}`,
+                    borderRadius: "6px",
+                    backgroundColor: "#FFF",
+                    cursor: "pointer",
+                    "&:hover": { backgroundColor: ZONE_ROW_BG },
+                  }}
+                  onClick={() =>
+                    navigate(
+                      `/prototypes/planting-planning-3/plan/${season.id}`,
+                    )
+                  }
+                >
+                  <Typography
+                    sx={{
+                      fontSize: "14px",
+                      fontWeight: 500,
+                      color: TEXT_PRIMARY,
+                    }}
+                  >
+                    {season.name}
+                  </Typography>
+                  <Typography sx={{ fontSize: "12px", color: TEXT_SECONDARY }}>
+                    {MONTH_NAMES_FULL[season.startMonth]} -{" "}
+                    {MONTH_NAMES_FULL[season.endMonth]} •{" "}
+                    {season.zoneIds.length} zones
+                  </Typography>
+                </Box>
+              ))}
+          </Box>
+        </Box>
+      )}
+
+      {/* Add Season Modal */}
+      <Modal
+        open={addSeasonModalOpen}
+        onClose={() => setAddSeasonModalOpen(false)}
+      >
+        <Box
+          sx={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: 500,
+            backgroundColor: "#FFF",
+            borderRadius: "8px",
+            boxShadow: 24,
+            p: 4,
+          }}
+        >
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              mb: 3,
+            }}
+          >
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              Add Planting Season
+            </Typography>
+            <IconButton
+              onClick={() => setAddSeasonModalOpen(false)}
+              size="small"
+            >
+              <CloseIcon />
+            </IconButton>
+          </Box>
+
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            <TextField
+              label="Season Name"
+              value={newSeasonName}
+              onChange={(e) => setNewSeasonName(e.target.value)}
+              fullWidth
+              size="small"
+              placeholder="e.g., Spring Planting 2025"
+            />
+
+            <Box sx={{ display: "flex", gap: 2 }}>
+              <FormControl fullWidth size="small">
+                <Typography
+                  sx={{ fontSize: "12px", mb: 0.5, color: TEXT_SECONDARY }}
+                >
+                  Start Month
+                </Typography>
+                <Select
+                  value={newSeasonStartMonth}
+                  onChange={(e) =>
+                    setNewSeasonStartMonth(Number(e.target.value))
+                  }
+                >
+                  {MONTH_NAMES_FULL.map((month, idx) => (
+                    <MenuItem key={idx} value={idx}>
+                      {month}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <FormControl fullWidth size="small">
+                <Typography
+                  sx={{ fontSize: "12px", mb: 0.5, color: TEXT_SECONDARY }}
+                >
+                  End Month
+                </Typography>
+                <Select
+                  value={newSeasonEndMonth}
+                  onChange={(e) => setNewSeasonEndMonth(Number(e.target.value))}
+                >
+                  {MONTH_NAMES_FULL.map((month, idx) => (
+                    <MenuItem key={idx} value={idx}>
+                      {month}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+
+            <Box>
+              <Typography
+                sx={{ fontSize: "12px", mb: 1, color: TEXT_SECONDARY }}
+              >
+                Select Zones
+              </Typography>
+              {mockSite.zones.map((zone) => (
+                <FormControlLabel
+                  key={zone.id}
+                  control={
+                    <Checkbox
+                      checked={newSeasonZones.has(zone.id)}
+                      onChange={() => handleZoneToggle(zone.id)}
+                      size="small"
+                    />
+                  }
+                  label={
+                    <Typography sx={{ fontSize: "13px" }}>
+                      {zone.name} ({zone.area} ha)
+                    </Typography>
+                  }
+                />
+              ))}
+            </Box>
+
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 2,
+                mt: 2,
+              }}
+            >
+              <Button
+                label="Cancel"
+                onClick={() => setAddSeasonModalOpen(false)}
+                type="passive"
+              />
+              <Button
+                label="Add Season"
+                onClick={handleAddSeason}
+                type="productive"
+                priority="primary"
+                disabled={!newSeasonName.trim() || newSeasonZones.size === 0}
+              />
+            </Box>
+          </Box>
+        </Box>
+      </Modal>
+    </Page>
+  );
+}
