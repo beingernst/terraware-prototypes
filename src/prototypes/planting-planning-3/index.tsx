@@ -27,10 +27,7 @@ import {
   Settings as SeedsIcon,
   Yard as NurseryIcon,
   Park as PlantingIcon,
-  LocationOn as SitesIcon,
-  EventNote as PlansIcon,
-  TrendingUp as ProgressIcon,
-  BarChart as MonitoringIcon,
+
 } from '@mui/icons-material';
 
 import PlanScreen from './PlanScreen';
