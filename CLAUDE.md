@@ -48,10 +48,8 @@ Design tokens are in `src/design-system/tokens.ts`. Full reference: `docs/DESIGN
 | Prototype | Path | Description |
 |-----------|------|-------------|
 | Example Dashboard | `/prototypes/example-dashboard` | Production-matching dashboard with plants, species, and seeds cards |
-| Planting Planning | `/prototypes/planting-planning` | Gantt-chart planting season planner with multi-year scheduling |
-| Planting Planning 2 | `/prototypes/planting-planning-2` | Iteration on planting planning |
-| Planting Planning 3 | `/prototypes/planting-planning-3` | Further iteration on planting planning |
 | ME Test Prototype | `/prototypes/me-test-prototype` | Test prototype |
+| Planting Planning Michael | `/prototypes/planting-planning-michael` | Nursery inventory planning and planting seasons |
 
 ## Tech Stack
 
