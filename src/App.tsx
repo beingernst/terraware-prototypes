@@ -21,6 +21,7 @@ import METestPrototype from './prototypes/me-test-prototype';
 import PlantingPlanningPrototype from './prototypes/planting-planning';
 import PlantingPlanning2Prototype from './prototypes/planting-planning-2';
 import PlantingPlanning3Prototype from './prototypes/planting-planning-3';
+import PlantingPlanningMichaelPrototype from './prototypes/planting-planning-michael';
 
 function App() {
   return (
@@ -36,6 +37,7 @@ function App() {
             <Route path="/prototypes/planting-planning/*" element={<PlantingPlanningPrototype />} />
             <Route path="/prototypes/planting-planning-2/*" element={<PlantingPlanning2Prototype />} />
             <Route path="/prototypes/planting-planning-3/*" element={<PlantingPlanning3Prototype />} />
+            <Route path="/prototypes/planting-planning-michael/*" element={<PlantingPlanningMichaelPrototype />} />
           </Routes>
         </BrowserRouter>
       </ThemeProvider>
