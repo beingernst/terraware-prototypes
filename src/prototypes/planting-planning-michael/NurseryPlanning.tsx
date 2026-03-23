@@ -28,7 +28,7 @@ import { MaterialReactTable, useMaterialReactTable, type MRT_ColumnDef } from 'm
 import type { SiteAllocation } from './nurseryPlanningData';
 import {
   species,
-  plantingSeasons,
+  needByDates,
   plantingSites,
   initialSiteAllocations,
   getAllocationsForSpecies,
@@ -69,7 +69,7 @@ interface SpeciesRow {
 }
 
 export function NurseryPlanning() {
-  const [selectedSeasonId, setSelectedSeasonId] = useState(plantingSeasons[0].id);
+  const [selectedNeedByDateId, setSelectedNeedByDateId] = useState(needByDates[0].id);
   const [allocations, setAllocations] = useState<SiteAllocation[]>(() =>
     initialSiteAllocations.map((a) => ({ ...a }))
   );
@@ -78,8 +78,6 @@ export function NurseryPlanning() {
   ]);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [selectedSpeciesId, setSelectedSpeciesId] = useState<string | null>(null);
-
-  const selectedSeason = plantingSeasons.find((s) => s.id === selectedSeasonId)!;
 
   const availableToAdd = species.filter((sp) => !activeSpeciesIds.includes(sp.id));
 
@@ -258,21 +256,21 @@ export function NurseryPlanning() {
     data: tableData,
     renderTopToolbarCustomActions: () => (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Typography variant="body2" sx={{ color: TEXT_SECONDARY }}>
+          Need by
+        </Typography>
         <Select
           size="small"
-          value={selectedSeasonId}
-          onChange={(e) => setSelectedSeasonId(e.target.value)}
-          sx={{ minWidth: 180 }}
+          value={selectedNeedByDateId}
+          onChange={(e) => setSelectedNeedByDateId(e.target.value)}
+          sx={{ minWidth: 160 }}
         >
-          {plantingSeasons.map((s) => (
-            <MenuItem key={s.id} value={s.id}>
-              {s.label}
+          {needByDates.map((d) => (
+            <MenuItem key={d.id} value={d.id}>
+              {d.label}
             </MenuItem>
           ))}
         </Select>
-        <Typography variant="body2" sx={{ color: TEXT_SECONDARY }}>
-          {selectedSeason.plantingDates} Planting Dates
-        </Typography>
       </Box>
     ),
     enableExpanding: true,
@@ -355,8 +353,8 @@ export function NurseryPlanning() {
       <Box
         sx={{
           display: 'flex',
-          alignItems: 'center',
-          gap: 3,
+          flexDirection: 'column',
+          gap: 2,
           mb: 3,
           p: 2,
           bgcolor: HEADER_BG,
@@ -364,54 +362,94 @@ export function NurseryPlanning() {
           border: `1px solid ${BORDER_COLOR}`,
         }}
       >
-        <Box sx={{ flex: 1, minWidth: 200 }}>
-          <LinearProgress
-            variant="determinate"
-            value={Math.min(summaryProgress, 100)}
-            sx={{
-              height: 20,
-              borderRadius: 4,
-              bgcolor: '#E0E0E0',
-              '& .MuiLinearProgress-bar': {
-                bgcolor: getProgressColor(summary.totalAllocated, summary.totalTarget),
+        {/* Progress bar + Add button row */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Box sx={{ flex: 1 }}>
+            <LinearProgress
+              variant="determinate"
+              value={Math.min(summaryProgress, 100)}
+              sx={{
+                height: 20,
                 borderRadius: 4,
-              },
+                bgcolor: '#E0E0E0',
+                '& .MuiLinearProgress-bar': {
+                  bgcolor: getProgressColor(summary.totalAllocated, summary.totalTarget),
+                  borderRadius: 4,
+                },
+              }}
+            />
+          </Box>
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={() => setAddDialogOpen(true)}
+            sx={{
+              color: PRIMARY_GREEN,
+              borderColor: PRIMARY_GREEN,
+              textTransform: 'none',
+              flexShrink: 0,
+              '&:hover': { borderColor: '#3D6B4A', color: '#3D6B4A', bgcolor: 'transparent' },
             }}
-          />
+          >
+            + Add species
+          </Button>
         </Box>
-        <Typography variant="body2" sx={{ color: TEXT_SECONDARY, whiteSpace: 'nowrap' }}>
-          <strong>{summary.totalAllocated.toLocaleString()}</strong> Allocated
-        </Typography>
-        <Typography variant="body2" sx={{ color: TEXT_SECONDARY, whiteSpace: 'nowrap' }}>
-          <strong>{summary.totalInNurseries.toLocaleString()}</strong> In Nurseries
-        </Typography>
-        <Typography
-          variant="body2"
-          sx={{
-            color:
-              summary.totalInNurseries - summary.totalAllocated < 0 ? COLOR_GAP : TEXT_SECONDARY,
-            whiteSpace: 'nowrap',
-          }}
-        >
-          <strong>{(summary.totalInNurseries - summary.totalAllocated).toLocaleString()}</strong>{' '}
-          Remaining
-        </Typography>
-        <Typography variant="body2" sx={{ color: TEXT_SECONDARY, whiteSpace: 'nowrap' }}>
-          <strong>{summary.totalTarget.toLocaleString()}</strong> Target
-        </Typography>
-        <Button
-          variant="outlined"
-          size="small"
-          onClick={() => setAddDialogOpen(true)}
-          sx={{
-            color: PRIMARY_GREEN,
-            borderColor: PRIMARY_GREEN,
-            textTransform: 'none',
-            '&:hover': { borderColor: '#3D6B4A', color: '#3D6B4A', bgcolor: 'transparent' },
-          }}
-        >
-          + Add species
-        </Button>
+
+        {/* Metrics row */}
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          {/* Allocated */}
+          <Box sx={{ flex: 1, textAlign: 'center' }}>
+            <Typography variant="caption" sx={{ color: TEXT_SECONDARY, display: 'block' }}>
+              Allocated
+            </Typography>
+            <Typography sx={{ fontSize: 28, fontWeight: 600, color: TEXT_PRIMARY, lineHeight: 1.1 }}>
+              {summary.totalAllocated.toLocaleString()}
+            </Typography>
+          </Box>
+
+          <Box sx={{ width: '1px', height: 48, bgcolor: BORDER_COLOR, flexShrink: 0 }} />
+
+          {/* In Nurseries */}
+          <Box sx={{ flex: 1, textAlign: 'center' }}>
+            <Typography variant="caption" sx={{ color: TEXT_SECONDARY, display: 'block' }}>
+              In Nurseries
+            </Typography>
+            <Typography sx={{ fontSize: 28, fontWeight: 600, color: TEXT_PRIMARY, lineHeight: 1.1 }}>
+              {summary.totalInNurseries.toLocaleString()}
+            </Typography>
+          </Box>
+
+          <Box sx={{ width: '1px', height: 48, bgcolor: BORDER_COLOR, flexShrink: 0 }} />
+
+          {/* Remaining */}
+          <Box sx={{ flex: 1, textAlign: 'center' }}>
+            <Typography variant="caption" sx={{ color: TEXT_SECONDARY, display: 'block' }}>
+              Remaining
+            </Typography>
+            <Typography
+              sx={{
+                fontSize: 28,
+                fontWeight: 600,
+                lineHeight: 1.1,
+                color: summary.totalInNurseries - summary.totalAllocated < 0 ? COLOR_GAP : TEXT_PRIMARY,
+              }}
+            >
+              {(summary.totalInNurseries - summary.totalAllocated).toLocaleString()}
+            </Typography>
+          </Box>
+
+          <Box sx={{ width: '1px', height: 48, bgcolor: BORDER_COLOR, flexShrink: 0 }} />
+
+          {/* Target */}
+          <Box sx={{ flex: 1, textAlign: 'center' }}>
+            <Typography variant="caption" sx={{ color: TEXT_SECONDARY, display: 'block' }}>
+              Target
+            </Typography>
+            <Typography sx={{ fontSize: 28, fontWeight: 600, color: TEXT_PRIMARY, lineHeight: 1.1 }}>
+              {summary.totalTarget.toLocaleString()}
+            </Typography>
+          </Box>
+        </Box>
       </Box>
 
       <MaterialReactTable table={table} />

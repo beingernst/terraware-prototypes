@@ -18,10 +18,9 @@ export interface PlantingSite {
   name: string;
 }
 
-export interface PlantingSeason {
+export interface NeedByDate {
   id: string;
   label: string;
-  plantingDates: number;
 }
 
 export interface SiteAllocation {
@@ -66,9 +65,10 @@ export const plantingSites: PlantingSite[] = [
   { id: 'ps5', name: 'Kahua Ranch' },
 ];
 
-export const plantingSeasons: PlantingSeason[] = [
-  { id: 'season1', label: 'Feb - Apr 2026', plantingDates: 6 },
-  { id: 'season2', label: 'Oct - Dec 2026', plantingDates: 4 },
+export const needByDates: NeedByDate[] = [
+  { id: 'nbd1', label: 'Mar 15, 2026' },
+  { id: 'nbd2', label: 'Jun 1, 2026' },
+  { id: 'nbd3', label: 'Nov 1, 2026' },
 ];
 
 export const initialSiteAllocations: SiteAllocation[] = [
