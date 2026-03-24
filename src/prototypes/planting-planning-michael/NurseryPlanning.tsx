@@ -37,8 +37,6 @@ const HEADER_BG = '#F5F5F0';
 const TEXT_PRIMARY = '#3A4445';
 const TEXT_SECONDARY = '#6B7165';
 const BORDER_COLOR = '#E8E5E0';
-const PRIMARY_GREEN = '#4A7C59';
-
 // Semantic colors for progress bars
 const COLOR_FULFILLED = '#4CAF50';
 const COLOR_PARTIAL = '#FF9800';
