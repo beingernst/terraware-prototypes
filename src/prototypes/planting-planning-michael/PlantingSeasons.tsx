@@ -557,6 +557,9 @@ export function PlantingSeasons() {
                 flexDirection: 'column',
                 alignItems: 'center',
                 py: 10,
+                bgcolor: '#fff',
+                borderRadius: '8px',
+                border: `1px solid ${BORDER_COLOR}`,
               }}
             >
               <Typography variant="body1" sx={{ color: TEXT_SECONDARY, mb: 3 }}>
