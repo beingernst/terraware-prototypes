@@ -8,12 +8,7 @@
 import { useState, useMemo } from 'react';
 import {
   Box,
-  Button,
   Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   IconButton,
   MenuItem,
   Select,
@@ -27,7 +22,8 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { ArrowBack as ArrowBackIcon } from '@mui/icons-material';
+import { ArrowBack as ArrowBackIcon, Edit as EditIcon } from '@mui/icons-material';
+import { Button, DialogBox } from '@terraware/web-components';
 import { MaterialReactTable, useMaterialReactTable, type MRT_ColumnDef } from 'material-react-table';
 
 // Colors
@@ -361,9 +357,27 @@ function AddTargetsView({ season, onBack }: { season: Season; onBack: () => void
 interface SeasonCardProps {
   season: Season;
   onAddTargets: () => void;
+  onUpdate: (updated: Season) => void;
 }
 
-function SeasonCard({ season, onAddTargets }: SeasonCardProps) {
+function SeasonCard({ season, onAddTargets, onUpdate }: SeasonCardProps) {
+  const [editingName, setEditingName] = useState(false);
+  const [editingDates, setEditingDates] = useState(false);
+  const [draftName, setDraftName] = useState(season.name);
+  const [draftStart, setDraftStart] = useState(season.startDate);
+  const [draftEnd, setDraftEnd] = useState(season.endDate);
+
+  const commitName = () => {
+    if (draftName.trim()) onUpdate({ ...season, name: draftName.trim() });
+    else setDraftName(season.name);
+    setEditingName(false);
+  };
+
+  const commitDates = () => {
+    onUpdate({ ...season, startDate: draftStart, endDate: draftEnd });
+    setEditingDates(false);
+  };
+
   return (
     <Box
       sx={{
@@ -374,14 +388,69 @@ function SeasonCard({ season, onAddTargets }: SeasonCardProps) {
         bgcolor: '#fff',
       }}
     >
-      <Typography variant="h6" sx={{ fontWeight: 600, color: TEXT_PRIMARY, mb: 0.5 }}>
-        {season.name}
-      </Typography>
-      {season.startDate && season.endDate && (
-        <Typography variant="body2" sx={{ color: TEXT_SECONDARY, mb: 1.5 }}>
-          {formatDateRange(season.startDate, season.endDate)}
-        </Typography>
-      )}
+      {/* Name + dates row */}
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5, gap: 2 }}>
+        {/* Name */}
+        {editingName ? (
+          <TextField
+            value={draftName}
+            onChange={(e) => setDraftName(e.target.value)}
+            onBlur={commitName}
+            onKeyDown={(e) => { if (e.key === 'Enter') commitName(); if (e.key === 'Escape') { setDraftName(season.name); setEditingName(false); } }}
+            autoFocus
+            size="small"
+            sx={{ fontWeight: 600, fontSize: '1.1rem' }}
+          />
+        ) : (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Typography variant="h6" sx={{ fontWeight: 600, color: TEXT_PRIMARY }}>
+              {season.name}
+            </Typography>
+            <IconButton size="small" onClick={() => { setDraftName(season.name); setEditingName(true); }} sx={{ color: TEXT_SECONDARY }}>
+              <EditIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Box>
+        )}
+
+        <Box sx={{ flex: 1 }} />
+
+        {/* Date range */}
+        {editingDates ? (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <TextField
+              type="date"
+              value={draftStart}
+              onChange={(e) => setDraftStart(e.target.value)}
+              size="small"
+              slotProps={{ inputLabel: { shrink: true } }}
+              sx={{ width: 155 }}
+            />
+            <Typography variant="body2" sx={{ color: TEXT_SECONDARY }}>–</Typography>
+            <TextField
+              type="date"
+              value={draftEnd}
+              onChange={(e) => setDraftEnd(e.target.value)}
+              onBlur={commitDates}
+              onKeyDown={(e) => { if (e.key === 'Enter') commitDates(); if (e.key === 'Escape') { setDraftStart(season.startDate); setDraftEnd(season.endDate); setEditingDates(false); } }}
+              size="small"
+              slotProps={{ inputLabel: { shrink: true } }}
+              sx={{ width: 155 }}
+            />
+          </Box>
+        ) : (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            {season.startDate && season.endDate && (
+              <Typography variant="body2" sx={{ color: TEXT_SECONDARY }}>
+                {formatDateRange(season.startDate, season.endDate)}
+              </Typography>
+            )}
+            <IconButton size="small" onClick={() => { setDraftStart(season.startDate); setDraftEnd(season.endDate); setEditingDates(true); }} sx={{ color: TEXT_SECONDARY }}>
+              <EditIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Box>
+        )}
+      </Box>
+
       <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
         {strata.map((st) => (
           <Chip
@@ -396,19 +465,7 @@ function SeasonCard({ season, onAddTargets }: SeasonCardProps) {
         <Typography variant="body2" sx={{ color: TEXT_SECONDARY }}>
           Target: <em>Not set yet</em>
         </Typography>
-        <Button
-          variant="outlined"
-          size="small"
-          onClick={onAddTargets}
-          sx={{
-            color: PRIMARY_GREEN,
-            borderColor: PRIMARY_GREEN,
-            textTransform: 'none',
-            '&:hover': { borderColor: '#3D6B4A', color: '#3D6B4A', bgcolor: 'transparent' },
-          }}
-        >
-          Add Targets
-        </Button>
+        <Button label="Add Targets" onClick={onAddTargets} priority="secondary" />
       </Box>
     </Box>
   );
@@ -457,23 +514,11 @@ export function PlantingSeasons() {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h5" sx={{ fontWeight: 600, color: TEXT_PRIMARY, mb: 2 }}>
-        Planting
-      </Typography>
-
-      {/* Tabs */}
-      <Tabs
-        value={activeTab}
-        onChange={(_, v) => setActiveTab(v)}
-        sx={{ borderBottom: `1px solid ${BORDER_COLOR}`, mb: 3 }}
-        TabIndicatorProps={{ sx: { bgcolor: PRIMARY_GREEN } }}
-      >
-        <Tab label="Planting Progress" sx={{ textTransform: 'none' }} />
-        <Tab label="Planting Seasons" sx={{ textTransform: 'none' }} />
-      </Tabs>
-
-      {/* Planting Site selector */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
+      {/* Header row */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+        <Typography variant="h5" sx={{ fontWeight: 600, color: TEXT_PRIMARY }}>
+          Planting
+        </Typography>
         <Typography variant="body2" sx={{ color: TEXT_SECONDARY, fontWeight: 500 }}>
           Planting Site:
         </Typography>
@@ -491,6 +536,17 @@ export function PlantingSeasons() {
         </Select>
       </Box>
 
+      {/* Tabs */}
+      <Tabs
+        value={activeTab}
+        onChange={(_, v) => setActiveTab(v)}
+        sx={{ borderBottom: `1px solid ${BORDER_COLOR}`, mb: 3 }}
+        TabIndicatorProps={{ sx: { bgcolor: PRIMARY_GREEN } }}
+      >
+        <Tab label="Planting Progress" sx={{ textTransform: 'none' }} />
+        <Tab label="Planting Seasons" sx={{ textTransform: 'none' }} />
+      </Tabs>
+
       {/* Planting Seasons tab */}
       {activeTab === 1 && (
         <>
@@ -507,37 +563,21 @@ export function PlantingSeasons() {
                 You have not set up any planting seasons
               </Typography>
               <Button
-                variant="contained"
+                label="Add Planting Season"
                 onClick={() => setCreateDialogOpen(true)}
-                sx={{
-                  bgcolor: PRIMARY_GREEN,
-                  '&:hover': { bgcolor: '#3D6B4A' },
-                  textTransform: 'none',
-                }}
-              >
-                Add Planting Season
-              </Button>
+              />
             </Box>
           ) : (
             <Box>
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-                <Button
-                  variant="contained"
-                  onClick={() => setCreateDialogOpen(true)}
-                  sx={{
-                    bgcolor: PRIMARY_GREEN,
-                    '&:hover': { bgcolor: '#3D6B4A' },
-                    textTransform: 'none',
-                  }}
-                >
-                  Add Planting Season
-                </Button>
+                <Button label="Add Planting Season" onClick={() => setCreateDialogOpen(true)} />
               </Box>
               {seasons.map((season) => (
                 <SeasonCard
                   key={season.id}
                   season={season}
                   onAddTargets={() => setAddTargetsSeason(season)}
+                  onUpdate={(updated) => setSeasons((prev) => prev.map((s) => s.id === updated.id ? updated : s))}
                 />
               ))}
             </Box>
@@ -555,9 +595,18 @@ export function PlantingSeasons() {
       )}
 
       {/* Create Season Dialog */}
-      <Dialog open={createDialogOpen} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>Create Planting Season</DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, pt: '20px !important' }}>
+      <DialogBox
+        open={createDialogOpen}
+        onClose={handleCloseDialog}
+        title="Create Planting Season"
+        size="medium"
+        scrolled
+        middleButtons={[
+          <Button key="cancel" label="Cancel" onClick={handleCloseDialog} priority="secondary" />,
+          <Button key="save" label="Save" onClick={handleCreateSeason} disabled={!newSeasonName.trim()} />,
+        ]}
+      >
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
           <TextField
             label="Name"
             value={newSeasonName}
@@ -583,25 +632,8 @@ export function PlantingSeasons() {
               slotProps={{ inputLabel: { shrink: true } }}
             />
           </Box>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={handleCloseDialog} sx={{ textTransform: 'none' }}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleCreateSeason}
-            disabled={!newSeasonName.trim()}
-            variant="contained"
-            sx={{
-              bgcolor: PRIMARY_GREEN,
-              '&:hover': { bgcolor: '#3D6B4A' },
-              textTransform: 'none',
-            }}
-          >
-            Save
-          </Button>
-        </DialogActions>
-      </Dialog>
+        </Box>
+      </DialogBox>
     </Box>
   );
 }

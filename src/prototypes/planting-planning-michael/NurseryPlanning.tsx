@@ -8,11 +8,6 @@ import { useMemo, useState } from 'react';
 import {
   Autocomplete,
   Box,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   LinearProgress,
   MenuItem,
   Select,
@@ -24,6 +19,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import { Button, DialogBox } from '@terraware/web-components';
 import { MaterialReactTable, useMaterialReactTable, type MRT_ColumnDef } from 'material-react-table';
 import type { SiteAllocation } from './nurseryPlanningData';
 import {
@@ -380,19 +376,10 @@ export function NurseryPlanning() {
             />
           </Box>
           <Button
-            variant="outlined"
-            size="small"
+            label="+ Add species"
             onClick={() => setAddDialogOpen(true)}
-            sx={{
-              color: PRIMARY_GREEN,
-              borderColor: PRIMARY_GREEN,
-              textTransform: 'none',
-              flexShrink: 0,
-              '&:hover': { borderColor: '#3D6B4A', color: '#3D6B4A', bgcolor: 'transparent' },
-            }}
-          >
-            + Add species
-          </Button>
+            priority="secondary"
+          />
         </Box>
 
         {/* Metrics row */}
@@ -454,30 +441,25 @@ export function NurseryPlanning() {
 
       <MaterialReactTable table={table} />
 
-      <Dialog open={addDialogOpen} onClose={() => setAddDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Add Species</DialogTitle>
-        <DialogContent>
-          <Autocomplete
-            options={availableToAdd}
-            getOptionLabel={(sp) => `${sp.scientificName} (${sp.commonName})`}
-            onChange={(_, val) => setSelectedSpeciesId(val?.id ?? null)}
-            renderInput={(params) => (
-              <TextField {...params} label="Species" autoFocus sx={{ mt: 1 }} />
-            )}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setAddDialogOpen(false)}>Cancel</Button>
-          <Button
-            onClick={handleAddSpecies}
-            disabled={!selectedSpeciesId}
-            variant="contained"
-            sx={{ bgcolor: PRIMARY_GREEN, '&:hover': { bgcolor: '#3D6B4A' }, textTransform: 'none' }}
-          >
-            Add
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <DialogBox
+        open={addDialogOpen}
+        onClose={() => setAddDialogOpen(false)}
+        title="Add Species"
+        size="medium"
+        middleButtons={[
+          <Button key="cancel" label="Cancel" onClick={() => setAddDialogOpen(false)} priority="secondary" />,
+          <Button key="add" label="Add" onClick={handleAddSpecies} disabled={!selectedSpeciesId} />,
+        ]}
+      >
+        <Autocomplete
+          options={availableToAdd}
+          getOptionLabel={(sp) => `${sp.scientificName} (${sp.commonName})`}
+          onChange={(_, val) => setSelectedSpeciesId(val?.id ?? null)}
+          renderInput={(params) => (
+            <TextField {...params} label="Species" autoFocus sx={{ mt: 1 }} />
+          )}
+        />
+      </DialogBox>
     </Box>
   );
 }

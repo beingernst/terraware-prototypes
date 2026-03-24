@@ -36,9 +36,8 @@ const sections: NavSection[] = [
           { label: 'Withdrawal Log', path: `${BASE}/withdrawal-log` },
         ],
       },
-      { label: 'Plants', icon: <PlantsIcon fontSize="small" />, path: `${BASE}/plants` },
       {
-        label: 'Planting',
+        label: 'Plants',
         icon: <PlantsIcon fontSize="small" />,
         children: [
           { label: 'Dashboard', path: `${BASE}/planting-dashboard` },
