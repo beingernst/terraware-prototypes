@@ -2,6 +2,18 @@
 
 Rapid prototyping environment for Terraware product development. Build interactive prototypes that match production visuals using the same design system.
 
+## How to Create a New Prototype
+
+1. Open terminal in your `terraware-prototypes` folder
+2. Run `claude`
+3. Say: *"Pull latest, then create a new prototype called [your-name-or-feature]"*
+4. Describe what you want to build
+5. When you're done, say: *"Commit and push my changes"*
+
+**Two rules:**
+- Always start with "pull latest"
+- Don't edit someone else's prototype — copy it if you want to riff on it
+
 ## Getting Set Up
 
 1. **Install [Claude Code](https://claude.ai/claude-code)** (if you don't have it already)
