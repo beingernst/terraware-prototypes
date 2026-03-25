@@ -5,53 +5,65 @@ import { PlanningHome } from './PlanningHome';
 import { NurseryPlanning } from './NurseryPlanning';
 import { PlantingSeasons } from './PlantingSeasons';
 import {
-  Home as HomeIcon,
-  Sync as SpeciesIcon,
-  Settings as SeedsIcon,
-  Yard as SeedlingsIcon,
-  Park as PlantsIcon,
-  Assessment as ReportsIcon,
-  Settings as SettingsIcon,
+  HomeOutlined as HomeIcon,
+  SyncAlt as SpeciesIcon,
+  GrainOutlined as SeedsIcon,
+  SpaOutlined as SeedlingsIcon,
+  ParkOutlined as PlantsIcon,
 } from '@mui/icons-material';
 
 const BASE = '/prototypes/planting-planning-michael';
+const ICON_COLOR = '#7F785C';
+const icon = (Icon: React.ComponentType<{ fontSize?: 'small'; sx?: object }>) => (
+  <Icon fontSize="small" sx={{ color: ICON_COLOR }} />
+);
 
 const sections: NavSection[] = [
   {
     items: [
-      { label: 'Home', icon: <HomeIcon fontSize="small" />, path: `${BASE}` },
-      { label: 'Species', icon: <SpeciesIcon fontSize="small" />, path: `${BASE}/species` },
+      { label: 'Home', icon: icon(HomeIcon), path: `${BASE}` },
+      { label: 'Species', icon: icon(SpeciesIcon), path: `${BASE}/species` },
     ],
     showDividerAfter: true,
   },
   {
     items: [
-      { label: 'Seeds', icon: <SeedsIcon fontSize="small" />, path: `${BASE}/seeds` },
+      {
+        label: 'Seeds',
+        icon: icon(SeedsIcon),
+        children: [
+          { label: 'Accessions', path: `${BASE}/accessions` },
+          { label: 'Seed Banks', path: `${BASE}/seed-banks` },
+        ],
+      },
+    ],
+    showDividerAfter: true,
+  },
+  {
+    items: [
       {
         label: 'Seedlings',
-        icon: <SeedlingsIcon fontSize="small" />,
+        icon: icon(SeedlingsIcon),
         children: [
           { label: 'Inventory', path: `${BASE}/seedlings-inventory` },
-          { label: 'Planning', path: `${BASE}/nursery-planning` },
+          { label: 'Nursery Planning', path: `${BASE}/nursery-planning` },
           { label: 'Withdrawal Log', path: `${BASE}/withdrawal-log` },
         ],
       },
-      {
-        label: 'Plants',
-        icon: <PlantsIcon fontSize="small" />,
-        children: [
-          { label: 'Dashboard', path: `${BASE}/planting-dashboard` },
-          { label: 'Observation', path: `${BASE}/planting-observation` },
-          { label: 'Planting Progress', path: `${BASE}/planting-seasons` },
-        ],
-      },
     ],
     showDividerAfter: true,
   },
   {
     items: [
-      { label: 'Reports', icon: <ReportsIcon fontSize="small" />, path: `${BASE}/reports` },
-      { label: 'Settings', icon: <SettingsIcon fontSize="small" />, path: `${BASE}/settings` },
+      {
+        label: 'Plants',
+        icon: icon(PlantsIcon),
+        children: [
+          { label: 'Dashboard', path: `${BASE}/dashboard` },
+          { label: 'Observations', path: `${BASE}/observations` },
+          { label: 'Planting Seasons', path: `${BASE}/planting-seasons` },
+        ],
+      },
     ],
   },
 ];
@@ -61,6 +73,7 @@ export default function PlantingPlanningPrototype() {
     <AppShell sections={sections}>
       <Routes>
         <Route index element={<PlanningHome />} />
+        <Route path="dashboard" element={<PlanningHome />} />
         <Route path="nursery-planning" element={<NurseryPlanning />} />
         <Route path="planting-seasons" element={<PlantingSeasons />} />
         <Route path="*" element={<Navigate to="" replace />} />

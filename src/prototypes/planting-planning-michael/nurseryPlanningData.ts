@@ -188,6 +188,64 @@ export const nurseryInventory: NurserySpeciesInventory[] = [
   { speciesId: 'sp10', nurseryId: 'n2', quantity: 40 },
 ];
 
+// --- Planting Seasons (for nursery planning detail panel) ---
+
+export interface NurseryPlanningSeason {
+  id: string;
+  name: string;
+  startDate: string;
+}
+
+export const nurseryPlanningSeasons: NurseryPlanningSeason[] = [
+  { id: 'season-2024',   name: 'Feb - Nov 2024',    startDate: '2024-02-01' },
+  { id: 'season-active', name: 'Mar - Oct 2026',    startDate: '2026-03-01' },
+  { id: 'season-future', name: 'Nov - Mar 2026-27', startDate: '2026-11-12' },
+];
+
+export interface SeasonAllocation {
+  speciesId: string;
+  seasonId: string;
+  allocated: number;
+  target: number;
+}
+
+export const initialSeasonAllocations: SeasonAllocation[] = [
+  // sp1 A'ali'i
+  { speciesId: 'sp1', seasonId: 'season-active', allocated: 300, target: 300 },
+  { speciesId: 'sp1', seasonId: 'season-future', allocated: 200, target: 200 },
+  // sp2 'Aweoweo
+  { speciesId: 'sp2', seasonId: 'season-active', allocated: 150, target: 250 },
+  { speciesId: 'sp2', seasonId: 'season-future', allocated: 100, target: 150 },
+  // sp3 Pili
+  { speciesId: 'sp3', seasonId: 'season-active', allocated: 60, target: 200 },
+  { speciesId: 'sp3', seasonId: 'season-future', allocated: 20, target: 100 },
+  // sp4 Wiliwili
+  { speciesId: 'sp4', seasonId: 'season-active', allocated: 150, target: 150 },
+  { speciesId: 'sp4', seasonId: 'season-future', allocated: 50, target: 50 },
+  // sp5 Naio
+  { speciesId: 'sp5', seasonId: 'season-active', allocated: 100, target: 180 },
+  { speciesId: 'sp5', seasonId: 'season-future', allocated: 30, target: 120 },
+  // sp6 'Ilima
+  { speciesId: 'sp6', seasonId: 'season-active', allocated: 120, target: 100 },
+  { speciesId: 'sp6', seasonId: 'season-future', allocated: 60, target: 50 },
+  // sp7 Ma'o
+  { speciesId: 'sp7', seasonId: 'season-active', allocated: 40, target: 150 },
+  { speciesId: 'sp7', seasonId: 'season-future', allocated: 20, target: 100 },
+  // sp8 Koa
+  { speciesId: 'sp8', seasonId: 'season-active', allocated: 200, target: 200 },
+  { speciesId: 'sp8', seasonId: 'season-future', allocated: 100, target: 100 },
+  // sp9 'Ohi'a Lehua
+  { speciesId: 'sp9', seasonId: 'season-active', allocated: 150, target: 300 },
+  { speciesId: 'sp9', seasonId: 'season-future', allocated: 50, target: 200 },
+  // sp10 Mamane
+  { speciesId: 'sp10', seasonId: 'season-active', allocated: 0, target: 100 },
+  { speciesId: 'sp10', seasonId: 'season-future', allocated: 0, target: 80 },
+];
+
+export function getSeasonAllocationsForSpecies(speciesId: string): SeasonAllocation[] {
+  return initialSeasonAllocations.filter((a) => a.speciesId === speciesId);
+}
+
 // --- Helpers ---
 
 export function getSpeciesById(id: string): Species | undefined {

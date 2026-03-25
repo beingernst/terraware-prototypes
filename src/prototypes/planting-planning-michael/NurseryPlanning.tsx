@@ -8,9 +8,9 @@ import { useMemo, useState } from 'react';
 import {
   Autocomplete,
   Box,
+  Chip,
+  IconButton,
   LinearProgress,
-  MenuItem,
-  Select,
   Table,
   TableBody,
   TableCell,
@@ -20,16 +20,22 @@ import {
   Typography,
 } from '@mui/material';
 import { Button, DialogBox } from '@terraware/web-components';
-import { MaterialReactTable, useMaterialReactTable, type MRT_ColumnDef } from 'material-react-table';
-import type { SiteAllocation } from './nurseryPlanningData';
+import { Delete as DeleteIcon } from '@mui/icons-material';
+import {
+  MaterialReactTable,
+  MRT_TablePagination,
+  useMaterialReactTable,
+  type MRT_ColumnDef,
+  type MRT_ColumnFiltersState,
+} from 'material-react-table';
 import {
   species,
-  needByDates,
-  plantingSites,
-  initialSiteAllocations,
-  getAllocationsForSpecies,
+  nurseries as nurseriesData,
   getTotalInventoryForSpecies,
   getNurseryNamesForSpecies,
+  getNurseryInventoryForSpecies,
+  nurseryPlanningSeasons,
+  getSeasonAllocationsForSpecies,
 } from './nurseryPlanningData';
 
 // Colors
@@ -37,7 +43,7 @@ const HEADER_BG = '#F5F5F0';
 const TEXT_PRIMARY = '#3A4445';
 const TEXT_SECONDARY = '#6B7165';
 const BORDER_COLOR = '#E8E5E0';
-// Semantic colors for progress bars
+const PRIMARY_GREEN = '#4A7C59';
 const COLOR_FULFILLED = '#4CAF50';
 const COLOR_PARTIAL = '#FF9800';
 const COLOR_GAP = '#F44336';
@@ -48,6 +54,26 @@ function getProgressColor(allocated: number, target: number): string {
   if (ratio >= 1) return COLOR_FULFILLED;
   if (ratio > 0.1) return COLOR_PARTIAL;
   return COLOR_GAP;
+}
+
+// Green ≥80%, yellow 41-79%, red ≤20% of requested
+function getAllocatedStatusColor(allocated: number, requested: number): string {
+  if (requested === 0) return TEXT_PRIMARY;
+  const pct = allocated / requested;
+  if (pct >= 0.8) return COLOR_FULFILLED;
+  if (pct >= 0.41) return COLOR_PARTIAL;
+  if (pct <= 0.2) return COLOR_GAP;
+  return TEXT_PRIMARY;
+}
+
+// Green ≤20%, yellow 41-79%, red ≥80% of requested
+function getRemainingStatusColor(remaining: number, requested: number): string {
+  if (requested === 0) return TEXT_PRIMARY;
+  const pct = remaining / requested;
+  if (pct <= 0.2) return COLOR_FULFILLED;
+  if (pct >= 0.41 && pct <= 0.79) return COLOR_PARTIAL;
+  if (pct >= 0.8) return COLOR_GAP;
+  return TEXT_PRIMARY;
 }
 
 interface SpeciesRow {
@@ -62,33 +88,122 @@ interface SpeciesRow {
   progressPct: number;
 }
 
+interface AllocDialogState {
+  open: boolean;
+  speciesId: string;
+  seasonId: string;
+  seasonName: string;
+  nurseryQuantities: Record<string, number>;
+}
+
 export function NurseryPlanning() {
-  const [selectedNeedByDateId, setSelectedNeedByDateId] = useState(needByDates[0].id);
-  const [allocations, setAllocations] = useState<SiteAllocation[]>(() =>
-    initialSiteAllocations.map((a) => ({ ...a }))
+  const [filterDate, setFilterDate] = useState('');
+  const [includedSeasonIds, setIncludedSeasonIds] = useState<Set<string>>(
+    () => new Set(nurseryPlanningSeasons.map((s) => s.id))
   );
   const [activeSpeciesIds, setActiveSpeciesIds] = useState<string[]>([
     'sp1', 'sp2', 'sp3', 'sp4', 'sp5',
   ]);
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [selectedSpeciesId, setSelectedSpeciesId] = useState<string | null>(null);
+  const [columnFilters, setColumnFilters] = useState<MRT_ColumnFiltersState>([]);
+  // Per-species per-season per-nursery allocations: { [speciesId]: { [seasonId]: { [nurseryName]: qty } } }
+  const [nurserySeasonAllocs, setNurserySeasonAllocs] = useState<
+    Record<string, Record<string, Record<string, number>>>
+  >({});
+  const [isAddingSpecies, setIsAddingSpecies] = useState(false);
+  const [dialogState, setDialogState] = useState<AllocDialogState>({
+    open: false,
+    speciesId: '',
+    seasonId: '',
+    seasonName: '',
+    nurseryQuantities: {},
+  });
+
+  // Derive active nursery filter from MRT column filter state
+  const nurseriesFilter = useMemo(() => {
+    const f = columnFilters.find((cf) => cf.id === 'nurseries');
+    return (f?.value as string[]) ?? [];
+  }, [columnFilters]);
+
+  const handleFilterDateChange = (date: string) => {
+    setFilterDate(date);
+    if (!date) {
+      setIncludedSeasonIds(new Set(nurseryPlanningSeasons.map((s) => s.id)));
+    } else {
+      setIncludedSeasonIds(
+        new Set(nurseryPlanningSeasons.filter((s) => s.startDate <= date).map((s) => s.id))
+      );
+    }
+  };
+
+  const toggleSeason = (seasonId: string) => {
+    setIncludedSeasonIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(seasonId)) next.delete(seasonId);
+      else next.add(seasonId);
+      return next;
+    });
+  };
 
   const availableToAdd = species.filter((sp) => !activeSpeciesIds.includes(sp.id));
 
-  const handleAddSpecies = () => {
-    if (selectedSpeciesId) {
-      setActiveSpeciesIds((prev) => [...prev, selectedSpeciesId]);
-      setSelectedSpeciesId(null);
-      setAddDialogOpen(false);
-    }
+  const handleDeleteSpecies = (speciesId: string) => {
+    setActiveSpeciesIds((prev) => prev.filter((id) => id !== speciesId));
+    setNurserySeasonAllocs((prev) => {
+      const next = { ...prev };
+      delete next[speciesId];
+      return next;
+    });
   };
+
+  // Get total effective allocated for a species+season (sum per-nursery overrides, or fall back to data)
+  const getEffectiveAlloc = (speciesId: string, seasonId: string): number => {
+    const nurseryAllocs = nurserySeasonAllocs[speciesId]?.[seasonId];
+    if (nurseryAllocs !== undefined) {
+      return Object.values(nurseryAllocs).reduce((s, v) => s + v, 0);
+    }
+    const alloc = getSeasonAllocationsForSpecies(speciesId).find((a) => a.seasonId === seasonId);
+    return alloc?.allocated ?? 0;
+  };
+
+  const openAllocDialog = (speciesId: string, seasonId: string, seasonName: string) => {
+    const existing = nurserySeasonAllocs[speciesId]?.[seasonId];
+    const allNurseryNames = getNurseryNamesForSpecies(speciesId);
+    // Show only nurseries matching the active filter (or all if no filter)
+    const relevantNurseries =
+      nurseriesFilter.length > 0
+        ? allNurseryNames.filter((n) => nurseriesFilter.includes(n))
+        : allNurseryNames;
+    const quantities: Record<string, number> = {};
+    for (const n of relevantNurseries) {
+      quantities[n] = existing?.[n] ?? 0;
+    }
+    setDialogState({ open: true, speciesId, seasonId, seasonName, nurseryQuantities: quantities });
+  };
+
+  const saveAllocDialog = () => {
+    setNurserySeasonAllocs((prev) => ({
+      ...prev,
+      [dialogState.speciesId]: {
+        ...(prev[dialogState.speciesId] ?? {}),
+        [dialogState.seasonId]: dialogState.nurseryQuantities,
+      },
+    }));
+    setDialogState((prev) => ({ ...prev, open: false }));
+  };
+
+  const qualifiedSeasonIds = includedSeasonIds;
 
   const tableData = useMemo<SpeciesRow[]>(
     () =>
       species.filter((sp) => activeSpeciesIds.includes(sp.id)).map((sp) => {
-        const spAllocs = getAllocationsForSpecies(allocations, sp.id);
-        const allocated = spAllocs.reduce((s, a) => s + a.allocated, 0);
-        const target = spAllocs.reduce((s, a) => s + a.target, 0);
+        const seasonAllocs = getSeasonAllocationsForSpecies(sp.id);
+        const qualifiedAllocs = seasonAllocs.filter((a) => qualifiedSeasonIds.has(a.seasonId));
+
+        const target = qualifiedAllocs.reduce((s, a) => s + a.target, 0);
+        const allocated = qualifiedAllocs.reduce(
+          (s, a) => s + getEffectiveAlloc(sp.id, a.seasonId),
+          0
+        );
         const totalInventory = getTotalInventoryForSpecies(sp.id);
         const progressPct = target > 0 ? (allocated / target) * 100 : 0;
         return {
@@ -103,7 +218,8 @@ export function NurseryPlanning() {
           progressPct,
         };
       }),
-    [allocations, activeSpeciesIds]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeSpeciesIds, includedSeasonIds, nurserySeasonAllocs]
   );
 
   const summary = useMemo(() => {
@@ -113,52 +229,28 @@ export function NurseryPlanning() {
     return { totalAllocated, totalTarget, totalInNurseries };
   }, [tableData]);
 
-  const summaryProgress =
-    summary.totalTarget > 0 ? (summary.totalAllocated / summary.totalTarget) * 100 : 0;
-
-  const updateAllocation = (speciesId: string, siteId: string, value: number) => {
-    setAllocations((prev) =>
-      prev.map((a) =>
-        a.speciesId === speciesId && a.siteId === siteId ? { ...a, allocated: value } : a
-      )
-    );
-  };
-
-  const getOverAllocationError = (
-    speciesId: string,
-    siteId: string,
-    newValue: number
-  ): string | null => {
-    const totalInventory = getTotalInventoryForSpecies(speciesId);
-    const spAllocs = getAllocationsForSpecies(allocations, speciesId);
-    const otherAllocated = spAllocs
-      .filter((a) => a.siteId !== siteId)
-      .reduce((s, a) => s + a.allocated, 0);
-    if (otherAllocated + newValue > totalInventory) {
-      return 'Not enough inventory. Reduce allocation at another site to free up plants.';
-    }
-    return null;
-  };
-
   const columns = useMemo<MRT_ColumnDef<SpeciesRow>[]>(
     () => [
       {
         accessorKey: 'scientificName',
         header: 'Species',
-        Cell: ({ cell }) => (
+        enableColumnFilter: false,
+        Cell: ({ row }) => (
           <Typography variant="body2" sx={{ fontStyle: 'italic', color: TEXT_PRIMARY }}>
-            {cell.getValue<string>()}
+            {row.original.scientificName} ({row.original.commonName})
           </Typography>
         ),
-      },
-      {
-        accessorKey: 'commonName',
-        header: 'Common Name',
       },
       {
         accessorKey: 'nurseries',
         header: 'Nurseries',
         size: 160,
+        filterVariant: 'multi-select' as const,
+        filterSelectOptions: ['Waimea Nursery', 'Kona Nursery', 'Hilo Nursery'],
+        filterFn: (row, _columnId, filterValue: string[]) => {
+          if (!filterValue || filterValue.length === 0) return true;
+          return filterValue.some((n) => row.original.nurseries.includes(n));
+        },
         Cell: ({ cell }) => (
           <Typography variant="body2" sx={{ color: TEXT_SECONDARY, fontSize: '0.8rem' }}>
             {cell.getValue<string>()}
@@ -166,19 +258,9 @@ export function NurseryPlanning() {
         ),
       },
       {
-        accessorKey: 'allocated',
-        header: 'Allocated',
-        muiTableHeadCellProps: { align: 'right' },
-        muiTableBodyCellProps: { align: 'right' },
-        Cell: ({ cell }) => (
-          <Typography variant="body2" sx={{ color: TEXT_PRIMARY, fontWeight: 600 }}>
-            {cell.getValue<number>().toLocaleString()}
-          </Typography>
-        ),
-      },
-      {
         accessorKey: 'totalInventory',
         header: 'Total in Nursery',
+        enableColumnFilter: false,
         muiTableHeadCellProps: { align: 'right' },
         muiTableBodyCellProps: { align: 'right' },
         Cell: ({ cell }) => (
@@ -188,8 +270,33 @@ export function NurseryPlanning() {
         ),
       },
       {
+        accessorKey: 'target',
+        header: 'Requested',
+        enableColumnFilter: false,
+        muiTableHeadCellProps: { align: 'right' },
+        muiTableBodyCellProps: { align: 'right' },
+        Cell: ({ cell }) => (
+          <Typography variant="body2" sx={{ color: TEXT_PRIMARY }}>
+            {cell.getValue<number>().toLocaleString()}
+          </Typography>
+        ),
+      },
+      {
+        accessorKey: 'allocated',
+        header: 'Total Allocated',
+        enableColumnFilter: false,
+        muiTableHeadCellProps: { align: 'right' },
+        muiTableBodyCellProps: { align: 'right' },
+        Cell: ({ cell }) => (
+          <Typography variant="body2" sx={{ color: TEXT_PRIMARY, fontWeight: 600 }}>
+            {cell.getValue<number>().toLocaleString()}
+          </Typography>
+        ),
+      },
+      {
         accessorKey: 'remaining',
-        header: 'Remaining',
+        header: 'Remaining to be Allocated',
+        enableColumnFilter: false,
         muiTableHeadCellProps: { align: 'right' },
         muiTableBodyCellProps: { align: 'right' },
         Cell: ({ cell }) => {
@@ -205,19 +312,9 @@ export function NurseryPlanning() {
         },
       },
       {
-        accessorKey: 'target',
-        header: 'Target',
-        muiTableHeadCellProps: { align: 'right' },
-        muiTableBodyCellProps: { align: 'right' },
-        Cell: ({ cell }) => (
-          <Typography variant="body2" sx={{ color: TEXT_PRIMARY }}>
-            {cell.getValue<number>().toLocaleString()}
-          </Typography>
-        ),
-      },
-      {
         accessorKey: 'progressPct',
         header: 'Request Fulfilled',
+        enableColumnFilter: false,
         Cell: ({ row }) => {
           const { allocated, target, progressPct } = row.original;
           const color = getProgressColor(allocated, target);
@@ -241,6 +338,26 @@ export function NurseryPlanning() {
           );
         },
       },
+      {
+        id: 'actions',
+        header: '',
+        size: 48,
+        enableSorting: false,
+        enableColumnFilter: false,
+        muiTableBodyCellProps: { align: 'center', sx: { px: 0 } },
+        Cell: ({ row }) => (
+          <IconButton
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDeleteSpecies(row.original.speciesId);
+            }}
+            sx={{ color: TEXT_SECONDARY, '&:hover': { color: COLOR_GAP } }}
+          >
+            <DeleteIcon sx={{ fontSize: 16 }} />
+          </IconButton>
+        ),
+      },
     ],
     []
   );
@@ -248,73 +365,98 @@ export function NurseryPlanning() {
   const table = useMaterialReactTable({
     columns,
     data: tableData,
-    renderTopToolbarCustomActions: () => (
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        <Typography variant="body2" sx={{ color: TEXT_SECONDARY }}>
-          Need by
-        </Typography>
-        <Select
-          size="small"
-          value={selectedNeedByDateId}
-          onChange={(e) => setSelectedNeedByDateId(e.target.value)}
-          sx={{ minWidth: 160 }}
-        >
-          {needByDates.map((d) => (
-            <MenuItem key={d.id} value={d.id}>
-              {d.label}
-            </MenuItem>
-          ))}
-        </Select>
-      </Box>
-    ),
     enableExpanding: true,
     enableExpandAll: true,
     renderDetailPanel: ({ row }) => {
-      const spAllocs = getAllocationsForSpecies(allocations, row.original.speciesId);
+      const seasonAllocs = getSeasonAllocationsForSpecies(row.original.speciesId);
       return (
-        <Box sx={{ pl: 4, pr: 2, py: 1 }}>
-          <Table size="small">
+        <Box sx={{ pl: 4, pr: 2, py: 0 }}>
+          <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ color: TEXT_SECONDARY, fontSize: '0.75rem', fontWeight: 600 }}>
-                  Site
+                <TableCell sx={{ color: TEXT_SECONDARY, fontSize: '0.75rem', fontWeight: 600, width: '28%' }}>
+                  Planting Season
                 </TableCell>
-                <TableCell
-                  align="right"
-                  sx={{ color: TEXT_SECONDARY, fontSize: '0.75rem', fontWeight: 600 }}
-                >
+                <TableCell align="right" sx={{ color: TEXT_SECONDARY, fontSize: '0.75rem', fontWeight: 600, width: '15%' }}>
+                  Requested
+                </TableCell>
+                <TableCell align="right" sx={{ color: TEXT_SECONDARY, fontSize: '0.75rem', fontWeight: 600, width: '22%' }}>
                   Allocated
                 </TableCell>
-                <TableCell
-                  align="right"
-                  sx={{ color: TEXT_SECONDARY, fontSize: '0.75rem', fontWeight: 600 }}
-                >
-                  Target
+                <TableCell align="right" sx={{ color: TEXT_SECONDARY, fontSize: '0.75rem', fontWeight: 600, width: '18%' }}>
+                  Remaining to be Allocated
                 </TableCell>
-                <TableCell
-                  sx={{ color: TEXT_SECONDARY, fontSize: '0.75rem', fontWeight: 600, minWidth: 160 }}
-                >
+                <TableCell sx={{ color: TEXT_SECONDARY, fontSize: '0.75rem', fontWeight: 600 }}>
                   Fulfilled
                 </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {spAllocs.map((alloc) => {
-                const site = plantingSites.find((s) => s.id === alloc.siteId);
+              {nurseryPlanningSeasons.map((season) => {
+                const alloc = seasonAllocs.find((a) => a.seasonId === season.id);
+                const target = alloc?.target ?? 0;
+                const allocated = getEffectiveAlloc(row.original.speciesId, season.id);
+                const progressPct = target > 0 ? (allocated / target) * 100 : 0;
+                const color = getProgressColor(allocated, target);
                 return (
-                  <SiteAllocationRow
-                    key={alloc.siteId}
-                    siteName={site?.name ?? alloc.siteId}
-                    allocation={alloc}
-                    totalInventory={row.original.totalInventory}
-                    totalAllocated={row.original.allocated}
-                    onUpdate={(value) =>
-                      updateAllocation(row.original.speciesId, alloc.siteId, value)
-                    }
-                    getError={(value) =>
-                      getOverAllocationError(row.original.speciesId, alloc.siteId, value)
-                    }
-                  />
+                  <TableRow key={season.id} sx={{ '& td': { borderBottom: `1px solid ${BORDER_COLOR}` } }}>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ color: TEXT_SECONDARY }}>
+                        {season.name}
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Typography variant="body2" sx={{ color: TEXT_SECONDARY }}>
+                        {target.toLocaleString()}
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
+                        <Typography variant="body2" sx={{ color: TEXT_PRIMARY }}>
+                          {allocated.toLocaleString()}
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          component="span"
+                          sx={{
+                            color: PRIMARY_GREEN,
+                            cursor: 'pointer',
+                            '&:hover': { textDecoration: 'underline' },
+                            whiteSpace: 'nowrap',
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openAllocDialog(row.original.speciesId, season.id, season.name);
+                          }}
+                        >
+                          Allocate
+                        </Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Typography variant="body2" sx={{ color: TEXT_SECONDARY }}>
+                        {(target - allocated).toLocaleString()}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <LinearProgress
+                          variant="determinate"
+                          value={Math.min(progressPct, 100)}
+                          sx={{
+                            flex: 1,
+                            height: 6,
+                            borderRadius: 3,
+                            bgcolor: '#E0E0E0',
+                            '& .MuiLinearProgress-bar': { bgcolor: color, borderRadius: 3 },
+                          }}
+                        />
+                        <Typography variant="caption" sx={{ color: TEXT_SECONDARY, minWidth: 36 }}>
+                          {Math.round(progressPct)}%
+                        </Typography>
+                      </Box>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
             </TableBody>
@@ -322,20 +464,72 @@ export function NurseryPlanning() {
         </Box>
       );
     },
+    renderBottomToolbar: ({ table }) => (
+      <>
+        <Box sx={{ borderTop: `1px solid ${BORDER_COLOR}`, px: 2, py: 1, bgcolor: '#fff' }}>
+          {isAddingSpecies ? (
+            <Autocomplete
+              size="small"
+              options={availableToAdd}
+              getOptionLabel={(sp) => `${sp.scientificName} (${sp.commonName})`}
+              onChange={(_, val) => {
+                if (val) {
+                  setActiveSpeciesIds((prev) => [...prev, val.id]);
+                  setIsAddingSpecies(false);
+                }
+              }}
+              onBlur={() => setIsAddingSpecies(false)}
+              renderInput={(params) => (
+                <TextField {...params} autoFocus placeholder="Select species..." />
+              )}
+              sx={{ minWidth: 380 }}
+            />
+          ) : (
+            <Typography
+              variant="body2"
+              sx={{
+                color: PRIMARY_GREEN,
+                cursor: 'pointer',
+                display: 'inline',
+                '&:hover': { textDecoration: 'underline' },
+              }}
+              onClick={() => setIsAddingSpecies(true)}
+            >
+              + Show more species
+            </Typography>
+          )}
+        </Box>
+        <MRT_TablePagination table={table} />
+      </>
+    ),
     muiTablePaperProps: {
       sx: { border: `1px solid ${BORDER_COLOR}`, borderRadius: 1, boxShadow: 'none' },
     },
-    muiTableHeadRowProps: {
-      sx: { bgcolor: HEADER_BG },
-    },
+    muiTableHeadRowProps: { sx: { bgcolor: HEADER_BG } },
     muiTableHeadCellProps: {
       sx: { fontWeight: 600, color: TEXT_PRIMARY, borderBottom: `1px solid ${BORDER_COLOR}` },
     },
-    muiTableBodyCellProps: {
-      sx: { borderBottom: `1px solid ${BORDER_COLOR}` },
-    },
-    initialState: { density: 'compact' },
+    muiTableBodyCellProps: { sx: { borderBottom: `1px solid ${BORDER_COLOR}` } },
+    enableColumnFilters: true,
+    state: { columnFilters },
+    onColumnFiltersChange: setColumnFilters,
+    initialState: { density: 'compact', showColumnFilters: true },
   });
+
+  // Available inventory per nursery name for the allocation dialog
+  const dialogNurseryInventory = useMemo(() => {
+    if (!dialogState.speciesId) return {} as Record<string, number>;
+    const inventoryItems = getNurseryInventoryForSpecies(dialogState.speciesId);
+    const map: Record<string, number> = {};
+    for (const item of inventoryItems) {
+      const nursery = nurseriesData.find((n) => n.id === item.nurseryId);
+      if (nursery) map[nursery.name] = item.quantity;
+    }
+    return map;
+  }, [dialogState.speciesId]);
+
+  const dialogSpecies = species.find((s) => s.id === dialogState.speciesId);
+  const dialogTotal = Object.values(dialogState.nurseryQuantities).reduce((s, v) => s + v, 0);
 
   return (
     <Box sx={{ p: 3 }}>
@@ -343,7 +537,65 @@ export function NurseryPlanning() {
         Nursery Inventory Planning
       </Typography>
 
-      {/* Summary row */}
+      {/* Date filter */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 2,
+          mb: 2,
+          p: 2,
+          bgcolor: '#fff',
+          borderRadius: 1,
+          border: `1px solid ${BORDER_COLOR}`,
+          flexWrap: 'wrap',
+        }}
+      >
+        <Typography variant="body2" sx={{ color: TEXT_SECONDARY, fontWeight: 500 }}>
+          Show requests for seasons starting by:
+        </Typography>
+        <TextField
+          type="date"
+          size="small"
+          value={filterDate}
+          onChange={(e) => handleFilterDateChange(e.target.value)}
+          slotProps={{ inputLabel: { shrink: true } }}
+          sx={{ width: 180 }}
+        />
+        {(filterDate || includedSeasonIds.size < nurseryPlanningSeasons.length) && (
+          <Typography
+            variant="body2"
+            sx={{ color: PRIMARY_GREEN, cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+            onClick={() => handleFilterDateChange('')}
+          >
+            Show All
+          </Typography>
+        )}
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          {nurseryPlanningSeasons.map((season) => {
+            const included = includedSeasonIds.has(season.id);
+            return (
+              <Chip
+                key={season.id}
+                label={season.name}
+                size="small"
+                onClick={() => toggleSeason(season.id)}
+                sx={{
+                  cursor: 'pointer',
+                  bgcolor: included ? '#E6F4EC' : HEADER_BG,
+                  color: included ? '#2E7D32' : TEXT_SECONDARY,
+                  fontWeight: included ? 600 : 400,
+                  fontSize: '0.75rem',
+                  opacity: included ? 1 : 0.5,
+                  '&:hover': { opacity: 0.85 },
+                }}
+              />
+            );
+          })}
+        </Box>
+      </Box>
+
+      {/* Summary card */}
       <Box
         sx={{
           display: 'flex',
@@ -356,48 +608,10 @@ export function NurseryPlanning() {
           border: `1px solid ${BORDER_COLOR}`,
         }}
       >
-        {/* Progress bar + Add button row */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, minHeight: 40 }}>
-          <Box sx={{ flex: 1 }}>
-            <LinearProgress
-              variant="determinate"
-              value={Math.min(summaryProgress, 100)}
-              sx={{
-                height: 20,
-                borderRadius: 4,
-                bgcolor: '#E0E0E0',
-                '& .MuiLinearProgress-bar': {
-                  bgcolor: getProgressColor(summary.totalAllocated, summary.totalTarget),
-                  borderRadius: 4,
-                },
-              }}
-            />
-          </Box>
-          <Button
-            label="+ Add species"
-            onClick={() => setAddDialogOpen(true)}
-            priority="secondary"
-          />
-        </Box>
-
-        {/* Metrics row */}
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          {/* Allocated */}
           <Box sx={{ flex: 1, textAlign: 'center' }}>
             <Typography variant="caption" sx={{ color: TEXT_SECONDARY, display: 'block' }}>
-              Allocated
-            </Typography>
-            <Typography sx={{ fontSize: 28, fontWeight: 600, color: TEXT_PRIMARY, lineHeight: 1.1 }}>
-              {summary.totalAllocated.toLocaleString()}
-            </Typography>
-          </Box>
-
-          <Box sx={{ width: '1px', height: 48, bgcolor: BORDER_COLOR, flexShrink: 0 }} />
-
-          {/* In Nurseries */}
-          <Box sx={{ flex: 1, textAlign: 'center' }}>
-            <Typography variant="caption" sx={{ color: TEXT_SECONDARY, display: 'block' }}>
-              In Nurseries
+              Total In Nurseries
             </Typography>
             <Typography sx={{ fontSize: 28, fontWeight: 600, color: TEXT_PRIMARY, lineHeight: 1.1 }}>
               {summary.totalInNurseries.toLocaleString()}
@@ -406,32 +620,44 @@ export function NurseryPlanning() {
 
           <Box sx={{ width: '1px', height: 48, bgcolor: BORDER_COLOR, flexShrink: 0 }} />
 
-          {/* Remaining */}
           <Box sx={{ flex: 1, textAlign: 'center' }}>
             <Typography variant="caption" sx={{ color: TEXT_SECONDARY, display: 'block' }}>
-              Remaining
+              Requested
+            </Typography>
+            <Typography sx={{ fontSize: 28, fontWeight: 600, color: TEXT_PRIMARY, lineHeight: 1.1 }}>
+              {summary.totalTarget.toLocaleString()}
+            </Typography>
+          </Box>
+
+          <Box sx={{ width: '1px', height: 48, bgcolor: BORDER_COLOR, flexShrink: 0 }} />
+
+          <Box sx={{ flex: 1, textAlign: 'center' }}>
+            <Typography variant="caption" sx={{ color: TEXT_SECONDARY, display: 'block' }}>
+              Total Allocated
+            </Typography>
+            <Typography sx={{ fontSize: 28, fontWeight: 600, color: getAllocatedStatusColor(summary.totalAllocated, summary.totalTarget), lineHeight: 1.1 }}>
+              {summary.totalAllocated.toLocaleString()}
+            </Typography>
+          </Box>
+
+          <Box sx={{ width: '1px', height: 48, bgcolor: BORDER_COLOR, flexShrink: 0 }} />
+
+          <Box sx={{ flex: 1, textAlign: 'center' }}>
+            <Typography variant="caption" sx={{ color: TEXT_SECONDARY, display: 'block' }}>
+              Remaining to be Allocated
             </Typography>
             <Typography
               sx={{
                 fontSize: 28,
                 fontWeight: 600,
                 lineHeight: 1.1,
-                color: summary.totalInNurseries - summary.totalAllocated < 0 ? COLOR_GAP : TEXT_PRIMARY,
+                color: getRemainingStatusColor(
+                  summary.totalInNurseries - summary.totalAllocated,
+                  summary.totalTarget
+                ),
               }}
             >
               {(summary.totalInNurseries - summary.totalAllocated).toLocaleString()}
-            </Typography>
-          </Box>
-
-          <Box sx={{ width: '1px', height: 48, bgcolor: BORDER_COLOR, flexShrink: 0 }} />
-
-          {/* Target */}
-          <Box sx={{ flex: 1, textAlign: 'center' }}>
-            <Typography variant="caption" sx={{ color: TEXT_SECONDARY, display: 'block' }}>
-              Target
-            </Typography>
-            <Typography sx={{ fontSize: 28, fontWeight: 600, color: TEXT_PRIMARY, lineHeight: 1.1 }}>
-              {summary.totalTarget.toLocaleString()}
             </Typography>
           </Box>
         </Box>
@@ -439,135 +665,95 @@ export function NurseryPlanning() {
 
       <MaterialReactTable table={table} />
 
+      {/* Allocation Dialog */}
       <DialogBox
-        open={addDialogOpen}
-        onClose={() => setAddDialogOpen(false)}
-        title="Add Species"
+        open={dialogState.open}
+        onClose={() => setDialogState((prev) => ({ ...prev, open: false }))}
+        title="Allocate Plants"
         size="medium"
+        scrolled
         middleButtons={[
-          <Button key="cancel" label="Cancel" onClick={() => setAddDialogOpen(false)} priority="secondary" />,
-          <Button key="add" label="Add" onClick={handleAddSpecies} disabled={!selectedSpeciesId} />,
+          <Button
+            key="cancel"
+            label="Cancel"
+            priority="secondary"
+            onClick={() => setDialogState((prev) => ({ ...prev, open: false }))}
+          />,
+          <Button key="save" label="Save" onClick={saveAllocDialog} />,
         ]}
       >
-        <Autocomplete
-          options={availableToAdd}
-          getOptionLabel={(sp) => `${sp.scientificName} (${sp.commonName})`}
-          onChange={(_, val) => setSelectedSpeciesId(val?.id ?? null)}
-          renderInput={(params) => (
-            <TextField {...params} label="Species" autoFocus sx={{ mt: 1 }} />
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {dialogSpecies && (
+            <Typography variant="body2" sx={{ color: TEXT_SECONDARY, fontStyle: 'italic' }}>
+              {dialogSpecies.scientificName} ({dialogSpecies.commonName}) — {dialogState.seasonName}
+            </Typography>
           )}
-        />
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 600, color: TEXT_SECONDARY, fontSize: '0.8rem' }}>
+                  Nursery
+                </TableCell>
+                <TableCell align="right" sx={{ fontWeight: 600, color: TEXT_SECONDARY, fontSize: '0.8rem' }}>
+                  Available
+                </TableCell>
+                <TableCell align="right" sx={{ fontWeight: 600, color: TEXT_SECONDARY, fontSize: '0.8rem' }}>
+                  Qty to Allocate
+                </TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {Object.keys(dialogState.nurseryQuantities).map((nurseryName) => (
+                <TableRow key={nurseryName}>
+                  <TableCell>
+                    <Typography variant="body2" sx={{ color: TEXT_PRIMARY }}>
+                      {nurseryName}
+                    </Typography>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Typography variant="body2" sx={{ color: TEXT_SECONDARY }}>
+                      {(dialogNurseryInventory[nurseryName] ?? 0).toLocaleString()}
+                    </Typography>
+                  </TableCell>
+                  <TableCell align="right">
+                    <TextField
+                      size="small"
+                      type="number"
+                      value={dialogState.nurseryQuantities[nurseryName]}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        setDialogState((prev) => ({
+                          ...prev,
+                          nurseryQuantities: {
+                            ...prev.nurseryQuantities,
+                            [nurseryName]: isNaN(val) ? 0 : Math.max(0, val),
+                          },
+                        }));
+                      }}
+                      slotProps={{
+                        htmlInput: { min: 0, step: 1, style: { textAlign: 'right' } },
+                      }}
+                      sx={{ width: 100 }}
+                    />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              pt: 1,
+              borderTop: `1px solid ${BORDER_COLOR}`,
+            }}
+          >
+            <Typography variant="body2" sx={{ color: TEXT_PRIMARY, fontWeight: 600 }}>
+              Total to Allocate: {dialogTotal.toLocaleString()}
+            </Typography>
+          </Box>
+        </Box>
       </DialogBox>
     </Box>
-  );
-}
-
-// --- Sub-components ---
-
-interface SiteAllocationRowProps {
-  siteName: string;
-  allocation: SiteAllocation;
-  totalInventory: number;
-  totalAllocated: number;
-  onUpdate: (value: number) => void;
-  getError: (value: number) => string | null;
-}
-
-function SiteAllocationRow({
-  siteName,
-  allocation,
-  onUpdate,
-  getError,
-}: SiteAllocationRowProps) {
-  const [localValue, setLocalValue] = useState(String(allocation.allocated));
-  const [error, setError] = useState<string | null>(null);
-
-  const handleChange = (raw: string) => {
-    setLocalValue(raw);
-    const num = parseInt(raw, 10);
-    if (isNaN(num) || num < 0) {
-      setError('Enter a valid number');
-      return;
-    }
-    const err = getError(num);
-    if (err) {
-      setError(err);
-      return;
-    }
-    setError(null);
-    onUpdate(num);
-  };
-
-  const progressPct =
-    allocation.target > 0 ? (allocation.allocated / allocation.target) * 100 : 0;
-  const progressColor = getProgressColor(allocation.allocated, allocation.target);
-
-  return (
-    <>
-      <TableRow
-        sx={{ '& td': { borderBottom: error ? 'none' : `1px solid ${BORDER_COLOR}` } }}
-      >
-        <TableCell>
-          <Typography variant="body2" sx={{ color: TEXT_SECONDARY }}>
-            {siteName}
-          </Typography>
-        </TableCell>
-        <TableCell align="right">
-          <TextField
-            size="small"
-            type="number"
-            value={localValue}
-            onChange={(e) => handleChange(e.target.value)}
-            error={!!error}
-            onClick={(e) => e.stopPropagation()}
-            slotProps={{
-              input: { sx: { fontSize: '0.85rem', py: 0 } },
-              htmlInput: { min: 0, step: 1 },
-            }}
-            sx={{ width: 90 }}
-          />
-        </TableCell>
-        <TableCell align="right">
-          <Typography variant="body2" sx={{ color: TEXT_SECONDARY }}>
-            {allocation.target.toLocaleString()}
-          </Typography>
-        </TableCell>
-        <TableCell>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <LinearProgress
-              variant="determinate"
-              value={error ? 100 : Math.min(progressPct, 100)}
-              sx={{
-                flex: 1,
-                height: 6,
-                borderRadius: 3,
-                bgcolor: '#E0E0E0',
-                '& .MuiLinearProgress-bar': {
-                  bgcolor: error ? '#D5D5D5' : progressColor,
-                  borderRadius: 3,
-                },
-              }}
-            />
-            {!error && (
-              <Typography variant="caption" sx={{ color: TEXT_SECONDARY, minWidth: 36 }}>
-                {Math.round(progressPct)}%
-              </Typography>
-            )}
-          </Box>
-        </TableCell>
-      </TableRow>
-      {error && (
-        <TableRow>
-          <TableCell
-            colSpan={4}
-            sx={{ pt: 0, pb: 0.5, borderBottom: `1px solid ${BORDER_COLOR}` }}
-          >
-            <Typography variant="caption" sx={{ color: COLOR_GAP, fontSize: '0.75rem' }}>
-              {error}
-            </Typography>
-          </TableCell>
-        </TableRow>
-      )}
-    </>
   );
 }
