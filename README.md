@@ -2,23 +2,43 @@
 
 Rapid prototyping environment for Terraware product development. Build interactive prototypes that match production visuals using the same design system.
 
-## Prerequisites
+## Getting Set Up
 
-- **Node.js 20+** (LTS) — if you use [nvm](https://github.com/nvm-sh/nvm), [fnm](https://github.com/Schniz/fnm), or [mise](https://mise.jdx.dev/), just run `nvm use` / `fnm use` / `mise install` and the `.node-version` file will be picked up automatically
-- **npm 9+** (ships with Node 20)
-- Optionally, [Claude Code](https://claude.ai/claude-code) — the repo includes a `CLAUDE.md` so Claude Code automatically understands project conventions
+1. **Install [Claude Code](https://claude.ai/claude-code)** (if you don't have it already)
+2. **Accept the GitHub repo invite** (check your email)
+3. **Clone and go:**
+   ```bash
+   git clone https://github.com/nicolelwilke/terraware-prototypes.git
+   cd terraware-prototypes
+   claude
+   ```
+4. **Tell Claude:** *"I want to create prototypes for the team. Get me set up and running."*
 
-## Quick Start
+Claude Code reads the project's `CLAUDE.md` automatically, so it knows all conventions. It will install Node if needed, run `npm install`, and start the dev server at http://localhost:5173.
 
+From there, just describe what you want to build.
+
+## Team Workflow
+
+### Before you start working
+Always pull latest first. Tell Claude Code *"pull latest before we start"* or run:
 ```bash
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
+git pull
 ```
 
-Opens http://localhost:5173 with hot reload enabled.
+### Work on your own prototype
+Copy `_template` into a new directory with a unique name. If you're working on `nursery-planning` and someone else is working on `inventory-redesign`, you're editing completely different files and won't conflict.
+
+Or just tell Claude Code: *"Create a new prototype called 'my-feature-name'"*
+
+### When you're at a stopping point
+Tell Claude Code: *"commit and push my changes"*
+
+### The one rule
+**Don't edit someone else's prototype.** If you want to riff on one, copy it into a new directory. This prevents merge conflicts and keeps everyone unblocked.
+
+### If something goes wrong
+If `git pull` shows a merge conflict, tell Claude Code *"help me resolve this merge conflict"*. But with separate prototype directories, this should be rare.
 
 ## Project Structure
 
