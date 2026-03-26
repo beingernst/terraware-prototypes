@@ -194,13 +194,26 @@ export interface NurseryPlanningSeason {
   id: string;
   name: string;
   startDate: string;
+  endDate: string;
+  siteId: string;
 }
 
 export const nurseryPlanningSeasons: NurseryPlanningSeason[] = [
-  { id: 'season-2024',   name: 'Feb - Nov 2024',    startDate: '2024-02-01' },
-  { id: 'season-active', name: 'Mar - Oct 2026',    startDate: '2026-03-01' },
-  { id: 'season-future', name: 'Nov - Mar 2026-27', startDate: '2026-11-12' },
+  { id: 'season-2024',   name: 'Feb - Nov 2024',    startDate: '2024-02-01', endDate: '2024-11-30', siteId: 'ps1' },
+  { id: 'season-active', name: 'Mar - Oct 2026',    startDate: '2026-03-01', endDate: '2026-10-31', siteId: 'ps2' },
+  { id: 'season-future', name: 'Nov - Mar 2026-27', startDate: '2026-11-12', endDate: '2027-03-23', siteId: 'ps3' },
 ];
+
+function formatDateMDY(dateStr: string): string {
+  const [year, month, day] = dateStr.split('-');
+  return `${parseInt(month)}/${parseInt(day)}/${year}`;
+}
+
+export function getSeasonDisplayLabel(season: NurseryPlanningSeason): string {
+  const site = plantingSites.find((s) => s.id === season.siteId);
+  const siteName = site?.name ?? '';
+  return `${siteName} - ${season.name} (${formatDateMDY(season.startDate)} - ${formatDateMDY(season.endDate)})`;
+}
 
 export interface SeasonAllocation {
   speciesId: string;

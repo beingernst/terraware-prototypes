@@ -36,6 +36,7 @@ import {
   getNurseryInventoryForSpecies,
   nurseryPlanningSeasons,
   getSeasonAllocationsForSpecies,
+  getSeasonDisplayLabel,
 } from './nurseryPlanningData';
 
 // Colors
@@ -213,7 +214,7 @@ export function NurseryPlanning() {
           nurseries: getNurseryNamesForSpecies(sp.id).join(', '),
           allocated,
           totalInventory,
-          remaining: totalInventory - allocated,
+          remaining: target - allocated,
           target,
           progressPct,
         };
@@ -392,7 +393,7 @@ export function NurseryPlanning() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {nurseryPlanningSeasons.map((season) => {
+              {nurseryPlanningSeasons.filter((s) => includedSeasonIds.has(s.id)).map((season) => {
                 const alloc = seasonAllocs.find((a) => a.seasonId === season.id);
                 const target = alloc?.target ?? 0;
                 const allocated = getEffectiveAlloc(row.original.speciesId, season.id);
@@ -402,7 +403,7 @@ export function NurseryPlanning() {
                   <TableRow key={season.id} sx={{ '& td': { borderBottom: `1px solid ${BORDER_COLOR}` } }}>
                     <TableCell>
                       <Typography variant="body2" sx={{ color: TEXT_SECONDARY }}>
-                        {season.name}
+                        {getSeasonDisplayLabel(season)}
                       </Typography>
                     </TableCell>
                     <TableCell align="right">
@@ -652,12 +653,12 @@ export function NurseryPlanning() {
                 fontWeight: 600,
                 lineHeight: 1.1,
                 color: getRemainingStatusColor(
-                  summary.totalInNurseries - summary.totalAllocated,
+                  summary.totalTarget - summary.totalAllocated,
                   summary.totalTarget
                 ),
               }}
             >
-              {(summary.totalInNurseries - summary.totalAllocated).toLocaleString()}
+              {(summary.totalTarget - summary.totalAllocated).toLocaleString()}
             </Typography>
           </Box>
         </Box>
