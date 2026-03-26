@@ -74,6 +74,8 @@ export interface NavSection {
 export interface SidebarProps {
   sections?: NavSection[];
   showLanguageSelector?: boolean;
+  /** Always show all children expanded with no collapse toggle */
+  alwaysExpanded?: boolean;
 }
 
 // Default navigation sections matching production
@@ -150,6 +152,7 @@ const defaultSections: NavSection[] = [
 export function Sidebar({
   sections = defaultSections,
   showLanguageSelector = true,
+  alwaysExpanded = false,
 }: SidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -193,7 +196,7 @@ export function Sidebar({
   // Render a single navigation item
   const renderNavItem = (item: NavItem) => {
     const hasChildren = item.children && item.children.length > 0;
-    const isOpen = openSections[item.label];
+    const isOpen = alwaysExpanded || openSections[item.label];
     const active = item.path ? isActive(item.path) : false;
 
     return (
@@ -201,7 +204,7 @@ export function Sidebar({
         <ListItem disablePadding sx={{ px: 1, mb: 0.25 }}>
           <ListItemButton
             onClick={() => {
-              if (hasChildren) {
+              if (hasChildren && !alwaysExpanded) {
                 toggleSection(item.label);
               } else if (item.path) {
                 navigate(item.path);
@@ -239,7 +242,7 @@ export function Sidebar({
                 color: TEXT_COLOR,
               }}
             />
-            {hasChildren && (
+            {hasChildren && !alwaysExpanded && (
               <Box sx={{ color: ICON_COLOR, display: 'flex', alignItems: 'center' }}>
                 {isOpen ? (
                   <KeyboardArrowUp sx={{ fontSize: 18 }} />

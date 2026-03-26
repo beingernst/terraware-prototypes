@@ -24,6 +24,8 @@ export interface AppShellProps {
   sections?: NavSection[];
   /** Show/hide the language selector at bottom of sidebar */
   showLanguageSelector?: boolean;
+  /** Always show all children expanded with no collapse toggle */
+  alwaysExpanded?: boolean;
 }
 
 export function AppShell({
@@ -33,6 +35,7 @@ export function AppShell({
   userName,
   sections,
   showLanguageSelector,
+  alwaysExpanded,
 }: AppShellProps) {
   // If navigation is hidden, just render children directly
   if (hideNavigation) {
@@ -56,6 +59,7 @@ export function AppShell({
       <Sidebar
         sections={sections}
         showLanguageSelector={showLanguageSelector}
+        alwaysExpanded={alwaysExpanded}
       />
 
       {/* Main Content Area */}

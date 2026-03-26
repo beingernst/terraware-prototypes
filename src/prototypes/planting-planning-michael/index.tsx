@@ -70,7 +70,7 @@ const sections: NavSection[] = [
 
 export default function PlantingPlanningPrototype() {
   return (
-    <AppShell sections={sections}>
+    <AppShell sections={sections} alwaysExpanded>
       <Routes>
         <Route index element={<PlanningHome />} />
         <Route path="dashboard" element={<PlanningHome />} />
