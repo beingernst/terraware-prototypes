@@ -263,7 +263,7 @@ export function NurseryPlanning() {
       {
         accessorKey: 'nurseries',
         header: 'Nurseries',
-        size: 160,
+        size: 110,
         filterVariant: 'multi-select' as const,
         filterSelectOptions: ['Waimea Nursery', 'Kona Nursery', 'Hilo Nursery'],
         filterFn: (row, _columnId, filterValue: string[]) => {
@@ -271,14 +271,14 @@ export function NurseryPlanning() {
           return filterValue.some((n) => row.original.nurseries.includes(n));
         },
         Cell: ({ cell }) => (
-          <Typography variant="body2" sx={{ color: TEXT_SECONDARY, fontSize: '0.8rem' }}>
+          <Typography variant="body2" sx={{ color: TEXT_SECONDARY, fontSize: '0.8rem', whiteSpace: 'normal', lineHeight: 1.4 }}>
             {cell.getValue<string>()}
           </Typography>
         ),
       },
       {
         accessorKey: 'totalInventory',
-        header: 'Total in Nursery',
+        header: 'Total in Nurseries',
         enableColumnFilter: false,
         muiTableHeadCellProps: { align: 'right' },
         muiTableBodyCellProps: { align: 'right' },
@@ -402,9 +402,6 @@ export function NurseryPlanning() {
                 </TableCell>
                 <TableCell align="right" sx={{ color: TEXT_SECONDARY, fontSize: '0.75rem', fontWeight: 600, width: '15%' }}>
                   Allocated
-                </TableCell>
-                <TableCell align="right" sx={{ color: TEXT_SECONDARY, fontSize: '0.75rem', fontWeight: 600, width: '14%' }}>
-                  Total in Nursery
                 </TableCell>
                 <TableCell align="right" sx={{ color: TEXT_SECONDARY, fontSize: '0.75rem', fontWeight: 600, width: '14%' }}>
                   Remaining to be Allocated
@@ -797,18 +794,9 @@ function SiteDetailRow({
         />
       </TableCell>
       <TableCell align="right">
-        {focused && (
-          <Typography variant="body2" sx={{ color: '#B0B0B0' }}>
-            {totalInventory.toLocaleString()}
-          </Typography>
-        )}
-      </TableCell>
-      <TableCell align="right">
-        {focused && (
-          <Typography variant="body2" sx={{ color: remaining < 0 ? COLOR_GAP : '#B0B0B0' }}>
-            {remaining.toLocaleString()}
-          </Typography>
-        )}
+        <Typography variant="body2" sx={{ color: remaining < 0 ? COLOR_GAP : TEXT_SECONDARY }}>
+          {remaining.toLocaleString()}
+        </Typography>
       </TableCell>
       <TableCell>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
