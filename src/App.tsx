@@ -22,6 +22,7 @@ import PlantingPlanningPrototype from './prototypes/planting-planning';
 import PlantingPlanning2Prototype from './prototypes/planting-planning-2';
 import PlantingPlanning3Prototype from './prototypes/planting-planning-3';
 import PlantingPlanningMichaelPrototype from './prototypes/planting-planning-michael';
+import PlantingPlanningMichaelJYPrototype from './prototypes/planting-planning-michael-jyversion';
 
 function App() {
   return (
@@ -38,6 +39,7 @@ function App() {
             <Route path="/prototypes/planting-planning-2/*" element={<PlantingPlanning2Prototype />} />
             <Route path="/prototypes/planting-planning-3/*" element={<PlantingPlanning3Prototype />} />
             <Route path="/prototypes/planting-planning-michael/*" element={<PlantingPlanningMichaelPrototype />} />
+            <Route path="/prototypes/planting-planning-michael-jyversion/*" element={<PlantingPlanningMichaelJYPrototype />} />
           </Routes>
         </BrowserRouter>
       </ThemeProvider>
