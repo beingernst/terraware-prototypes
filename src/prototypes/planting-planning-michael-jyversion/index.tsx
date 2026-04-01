@@ -12,7 +12,7 @@ import {
   ParkOutlined as PlantsIcon,
 } from '@mui/icons-material';
 
-const BASE = '/prototypes/planting-planning-michael';
+const BASE = '/prototypes/planting-planning-michael-jyversion';
 const ICON_COLOR = '#7F785C';
 const icon = (Icon: React.ComponentType<{ fontSize?: 'small'; sx?: object }>) => (
   <Icon fontSize="small" sx={{ color: ICON_COLOR }} />

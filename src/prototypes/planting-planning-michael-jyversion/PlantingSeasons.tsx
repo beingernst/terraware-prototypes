@@ -72,8 +72,15 @@ const plantingSites = [
 ];
 
 const strata = [
-  { id: 'st1', name: 'Black-White-East' },
-  { id: 'st2', name: 'Black-White-West' },
+  { id: 'pst1', name: 'Black-White' },
+  { id: 'pst2', name: 'Stratum 2' },
+];
+
+const substrata = [
+  { id: 'st1', name: 'Black-White-East', stratumId: 'pst1' },
+  { id: 'st2', name: 'Black-White-West', stratumId: 'pst1' },
+  { id: 'st3', name: 'Substrata A', stratumId: 'pst2' },
+  { id: 'st4', name: 'Substrata B', stratumId: 'pst2' },
 ];
 
 const speciesList = [
@@ -121,12 +128,15 @@ interface StratumTarget {
   withdrawn: number;
 }
 
-interface StratumRow {
-  stratumId: string;
+interface TableRow {
+  id: string;
   stratumName: string;
+  substratumId: string;
+  substratumName: string;
   target: number;
   withdrawn: number;
   remaining: number;
+  subRows?: TableRow[];
 }
 
 // --- Helpers ---
@@ -204,31 +214,58 @@ function ViewPlantingSeasonView({
     setAddingToStratumId(null);
   };
 
-  const tableData = useMemo<StratumRow[]>(
+  const tableData = useMemo<TableRow[]>(
     () =>
-      strata.map((st) => {
-        const stTargets = getSpeciesForStratum(st.id);
-        const target = stTargets.reduce((s, t) => s + t.target, 0);
-        const withdrawn = stTargets.reduce((s, t) => s + t.withdrawn, 0);
+      strata.map((stratum) => {
+        const stratumSubstrata = substrata.filter((s) => s.stratumId === stratum.id);
+        const subRows: TableRow[] = stratumSubstrata.map((sub) => {
+          const subTargets = getSpeciesForStratum(sub.id);
+          const target = subTargets.reduce((s, t) => s + t.target, 0);
+          const withdrawn = subTargets.reduce((s, t) => s + t.withdrawn, 0);
+          return {
+            id: sub.id,
+            stratumName: '',
+            substratumId: sub.id,
+            substratumName: sub.name,
+            target,
+            withdrawn,
+            remaining: target - withdrawn,
+          };
+        });
+        const target = subRows.reduce((s, r) => s + r.target, 0);
+        const withdrawn = subRows.reduce((s, r) => s + r.withdrawn, 0);
         return {
-          stratumId: st.id,
-          stratumName: st.name,
+          id: stratum.id,
+          stratumName: stratum.name,
+          substratumId: '',
+          substratumName: '',
           target,
           withdrawn,
           remaining: target - withdrawn,
+          subRows,
         };
       }),
     [stratumTargets]
   );
 
-  const columns = useMemo<MRT_ColumnDef<StratumRow>[]>(
+  const columns = useMemo<MRT_ColumnDef<TableRow>[]>(
     () => [
       {
         accessorKey: 'stratumName',
         header: 'Stratum',
-        size: 180,
+        size: 160,
         Cell: ({ cell }) => (
           <Typography variant="body2" sx={{ fontWeight: 600, color: TEXT_PRIMARY }}>
+            {cell.getValue<string>()}
+          </Typography>
+        ),
+      },
+      {
+        accessorKey: 'substratumName',
+        header: 'Substratum',
+        size: 180,
+        Cell: ({ cell }) => (
+          <Typography variant="body2" sx={{ color: TEXT_PRIMARY }}>
             {cell.getValue<string>()}
           </Typography>
         ),
@@ -285,11 +322,14 @@ function ViewPlantingSeasonView({
   const table = useMaterialReactTable({
     columns,
     data: tableData,
+    getSubRows: (row) => row.subRows,
     enableExpanding: true,
     enableExpandAll: true,
     renderDetailPanel: ({ row }) => {
-      const stratumId = row.original.stratumId;
-      const spTargets = getSpeciesForStratum(stratumId);
+      const substratumId = row.original.substratumId;
+      if (!substratumId) return null;
+
+      const spTargets = getSpeciesForStratum(substratumId);
 
       // Sort alphabetically by scientific name
       const sortedSpTargets = [...spTargets].sort((a, b) => {
@@ -299,7 +339,7 @@ function ViewPlantingSeasonView({
       });
 
       const isEmpty = sortedSpTargets.length === 0;
-      const showAll = showAllSpecies.has(stratumId);
+      const showAll = showAllSpecies.has(substratumId);
       const displayedTargets = showAll ? sortedSpTargets : sortedSpTargets.slice(0, SPECIES_LIMIT);
       const hiddenCount = sortedSpTargets.length - SPECIES_LIMIT;
 
@@ -307,8 +347,8 @@ function ViewPlantingSeasonView({
       const available = speciesList.filter((sp) => !addedIds.includes(sp.id)).sort((a, b) =>
         a.scientificName.localeCompare(b.scientificName)
       );
-      const isAddingHere = addingToStratumId === stratumId;
-      // Show selector by default for empty strata, or when explicitly triggered
+      const isAddingHere = addingToStratumId === substratumId;
+      // Show selector by default for empty substrata, or when explicitly triggered
       const showSelector = isAddingHere || isEmpty;
 
       return (
@@ -352,7 +392,7 @@ function ViewPlantingSeasonView({
                         value={st.target}
                         onChange={(e) => {
                           const val = parseInt(e.target.value, 10);
-                          if (!isNaN(val) && val >= 0) updateTarget(st.speciesId, stratumId, val);
+                          if (!isNaN(val) && val >= 0) updateTarget(st.speciesId, substratumId, val);
                         }}
                         onClick={(e) => e.stopPropagation()}
                         slotProps={{
@@ -380,7 +420,7 @@ function ViewPlantingSeasonView({
                         size="small"
                         onClick={(e) => {
                           e.stopPropagation();
-                          deleteSpecies(st.speciesId, stratumId);
+                          deleteSpecies(st.speciesId, substratumId);
                         }}
                         sx={{ color: TEXT_SECONDARY, '&:hover': { color: COLOR_GAP } }}
                       >
@@ -400,7 +440,7 @@ function ViewPlantingSeasonView({
                       options={available}
                       getOptionLabel={(sp) => `${sp.scientificName} (${sp.commonName})`}
                       onChange={(_, val) => {
-                        if (val) addSpecies(val.id, stratumId);
+                        if (val) addSpecies(val.id, substratumId);
                       }}
                       onBlur={() => {
                         // Only hide the selector on blur if it was explicitly opened (non-empty stratum)
@@ -426,7 +466,7 @@ function ViewPlantingSeasonView({
               <Typography
                 variant="body2"
                 sx={{ color: PRIMARY_GREEN, cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
-                onClick={() => setShowAllSpecies((prev) => new Set([...prev, stratumId]))}
+                onClick={() => setShowAllSpecies((prev) => new Set([...prev, substratumId]))}
               >
                 Show {hiddenCount} more
               </Typography>
@@ -438,7 +478,7 @@ function ViewPlantingSeasonView({
                 onClick={() =>
                   setShowAllSpecies((prev) => {
                     const next = new Set(prev);
-                    next.delete(stratumId);
+                    next.delete(substratumId);
                     return next;
                   })
                 }
@@ -456,7 +496,7 @@ function ViewPlantingSeasonView({
                   display: 'inline',
                   '&:hover': { textDecoration: 'underline' },
                 }}
-                onClick={() => setAddingToStratumId(stratumId)}
+                onClick={() => setAddingToStratumId(substratumId)}
               >
                 + Add Species
               </Typography>
@@ -473,7 +513,7 @@ function ViewPlantingSeasonView({
       sx: { fontWeight: 600, color: TEXT_PRIMARY, borderBottom: `1px solid ${BORDER_COLOR}` },
     },
     muiTableBodyCellProps: { sx: { borderBottom: `1px solid ${BORDER_COLOR}` } },
-    initialState: { density: 'compact', expanded: { '0': true, '1': true } },
+    initialState: { density: 'compact', expanded: { '0': true, '1': true, '2': true, '3': true } },
   });
 
   return (
@@ -713,14 +753,14 @@ function SeasonCard({ season, onViewSeason, onUpdate, archived = false, stratumT
             </Typography>
           </Box>
 
-          {/* Strata */}
+          {/* Substrata */}
           {activeStrataIds.length > 0 && (
             <Box sx={{ pl: 2, borderLeft: '1px solid #E3E1D9' }}>
               <Typography sx={{ fontSize: 16, fontWeight: 600, color: '#000', mb: '8px' }}>
-                Strata
+                Substrata
               </Typography>
               <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                {strata.filter((st) => activeStrataIds.includes(st.id)).map((st) => (
+                {substrata.filter((st) => activeStrataIds.includes(st.id)).map((st) => (
                   <Chip
                     key={st.id}
                     label={st.name}
