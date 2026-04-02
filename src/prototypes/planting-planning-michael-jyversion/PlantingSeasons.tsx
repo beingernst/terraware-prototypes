@@ -574,8 +574,12 @@ function SeasonCard({ season, onViewSeason, onUpdate, archived = false, stratumT
   const progress = totalTargets > 0 ? (totalPlanted / totalTargets) * 100 : 0;
   const progressBarColor = progress >= 80 ? '#4CAF50' : progress >= 41 ? '#FF9800' : '#F44336';
 
-  // Strata that have at least one species assigned
-  const activeStrataIds = [...new Set(stratumTargets.map((t) => t.stratumId))];
+  // Substrata that have at least one species with a planted goal
+  const activeStrataIds = [...new Set(stratumTargets.filter((t) => t.target > 0).map((t) => t.stratumId))];
+  // Parent strata that have at least one substratum with a planted goal
+  const activeParentStrataIds = [...new Set(
+    substrata.filter((sub) => activeStrataIds.includes(sub.id)).map((sub) => sub.stratumId)
+  )];
 
   const commitName = () => {
     if (draftName.trim()) onUpdate({ ...season, name: draftName.trim() });
@@ -753,6 +757,32 @@ function SeasonCard({ season, onViewSeason, onUpdate, archived = false, stratumT
             </Typography>
           </Box>
 
+          {/* Strata */}
+          {activeParentStrataIds.length > 0 && (
+            <Box sx={{ pl: 2, pr: 2, borderLeft: '1px solid #E3E1D9' }}>
+              <Typography sx={{ fontSize: 16, fontWeight: 600, color: '#000', mb: '8px' }}>
+                Strata
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                {strata.filter((st) => activeParentStrataIds.includes(st.id)).map((st) => (
+                  <Chip
+                    key={st.id}
+                    label={st.name}
+                    size="small"
+                    sx={{
+                      bgcolor: '#F2F0EE',
+                      color: '#7F785C',
+                      fontSize: '0.875rem',
+                      fontWeight: 500,
+                      px: 0.5,
+                      height: 28,
+                    }}
+                  />
+                ))}
+              </Box>
+            </Box>
+          )}
+
           {/* Substrata */}
           {activeStrataIds.length > 0 && (
             <Box sx={{ pl: 2, borderLeft: '1px solid #E3E1D9' }}>
@@ -793,11 +823,11 @@ export function PlantingSeasons() {
   const [activeTab, setActiveTab] = useState(1); // 0 = Progress, 1 = Seasons
   const [selectedSiteId, setSelectedSiteId] = useState('site1');
   const [seasons, setSeasons] = useState<Season[]>([
-    { id: 'season-active', name: 'Mar - Oct 2026',    startDate: '2026-03-01', endDate: '2026-10-31' },
-    { id: 'season-future', name: 'Nov - Mar 2026-27', startDate: '2026-11-12', endDate: '2027-03-23', forceActive: true },
-    { id: 'season-2024',   name: 'Feb - Nov 2024',    startDate: '2024-02-01', endDate: '2024-11-30' },
-    { id: 'season-2023',   name: 'Mar - Oct 2023',    startDate: '2023-03-01', endDate: '2023-10-31' },
-    { id: 'season-2022',   name: 'Apr - Sep 2022',    startDate: '2022-04-01', endDate: '2022-09-30' },
+    { id: 'season-active', name: 'Planting Season 4', startDate: '2026-03-01', endDate: '2026-10-31' },
+    { id: 'season-future', name: 'Planting Season 5', startDate: '2026-11-12', endDate: '2027-03-23', forceActive: true },
+    { id: 'season-2024',   name: 'Planting Season 3', startDate: '2024-02-01', endDate: '2024-11-30' },
+    { id: 'season-2023',   name: 'Planting Season 2', startDate: '2023-03-01', endDate: '2023-10-31' },
+    { id: 'season-2022',   name: 'Planting Season 1', startDate: '2022-04-01', endDate: '2022-09-30' },
   ]);
   // Stratum targets per season — lifted from ViewPlantingSeasonView so changes reflect in cards
   const [seasonStratumTargets, setSeasonStratumTargets] = useState<Record<string, StratumTarget[]>>(

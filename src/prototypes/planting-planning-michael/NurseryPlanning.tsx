@@ -31,12 +31,12 @@ import {
 import {
   species,
   nurseries as nurseriesData,
+  plantingSites,
   getTotalInventoryForSpecies,
   getNurseryNamesForSpecies,
   getNurseryInventoryForSpecies,
   nurseryPlanningSeasons,
   getSeasonAllocationsForSpecies,
-  getSeasonDisplayLabel,
 } from './nurseryPlanningData';
 
 // Colors
@@ -375,7 +375,10 @@ export function NurseryPlanning() {
           <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ color: TEXT_SECONDARY, fontSize: '0.75rem', fontWeight: 600, width: '28%' }}>
+                <TableCell sx={{ color: TEXT_SECONDARY, fontSize: '0.75rem', fontWeight: 600, width: '18%' }}>
+                  Planting Site
+                </TableCell>
+                <TableCell sx={{ color: TEXT_SECONDARY, fontSize: '0.75rem', fontWeight: 600, width: '18%' }}>
                   Planting Season
                 </TableCell>
                 <TableCell align="right" sx={{ color: TEXT_SECONDARY, fontSize: '0.75rem', fontWeight: 600, width: '15%' }}>
@@ -403,7 +406,12 @@ export function NurseryPlanning() {
                   <TableRow key={season.id} sx={{ '& td': { borderBottom: `1px solid ${BORDER_COLOR}` } }}>
                     <TableCell>
                       <Typography variant="body2" sx={{ color: TEXT_SECONDARY }}>
-                        {getSeasonDisplayLabel(season)}
+                        {plantingSites.find((s) => s.id === season.siteId)?.name ?? ''}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ color: TEXT_SECONDARY }}>
+                        {season.name}
                       </Typography>
                     </TableCell>
                     <TableCell align="right">
