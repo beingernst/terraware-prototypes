@@ -274,7 +274,7 @@ export function NurseryPlanning() {
       },
       {
         accessorKey: 'totalInventory',
-        header: 'Total in Nurseries',
+        header: 'Inventory',
         size: 105,
         enableColumnFilter: false,
         muiTableHeadCellProps: { align: 'right' },
@@ -300,7 +300,7 @@ export function NurseryPlanning() {
       },
       {
         accessorKey: 'allocated',
-        header: 'Total Allocated',
+        header: 'Allocated',
         size: 90,
         enableColumnFilter: false,
         muiTableHeadCellProps: { align: 'right' },
@@ -488,7 +488,7 @@ export function NurseryPlanning() {
       >
         <Box sx={{ flex: 1, textAlign: 'center' }}>
           <Typography variant="caption" sx={{ color: TEXT_SECONDARY, display: 'block' }}>
-            Total In Nurseries
+            Inventory
           </Typography>
           <Link to="../seedlings-inventory" style={{ textDecoration: 'none', color: 'inherit' }}>
             <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, justifyContent: 'center' }}>
@@ -515,7 +515,7 @@ export function NurseryPlanning() {
 
         <Box sx={{ flex: 1, textAlign: 'center' }}>
           <Typography variant="caption" sx={{ color: TEXT_SECONDARY, display: 'block' }}>
-            Total Allocated
+            Allocated
           </Typography>
           <Typography sx={{ fontSize: 28, fontWeight: 600, color: getAllocatedStatusColor(summary.totalAllocated, summary.totalTarget), lineHeight: 1.1 }}>
             {summary.totalAllocated.toLocaleString()}
