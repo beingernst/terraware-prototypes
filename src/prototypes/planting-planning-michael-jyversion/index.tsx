@@ -1,4 +1,6 @@
-import { Routes, Route, Navigate } from 'react-router';
+import { Routes, Route, Navigate, useParams } from 'react-router';
+import { Box, Typography } from '@mui/material';
+import { nurseryPlanningSeasons, plantingSites } from './nurseryPlanningData';
 import { AppShell } from '@/components/navigation';
 import type { NavSection } from '@/components/navigation';
 import { PlanningHome } from './PlanningHome';
@@ -11,6 +13,38 @@ import {
   SpaOutlined as SeedlingsIcon,
   ParkOutlined as PlantsIcon,
 } from '@mui/icons-material';
+
+function PlantingSeasonDetail() {
+  const { seasonId } = useParams<{ seasonId: string }>();
+  const season = nurseryPlanningSeasons.find((s) => s.id === seasonId);
+  const site = season ? plantingSites.find((p) => p.id === season.siteId) : undefined;
+  return (
+    <Box sx={{ p: 3 }}>
+      <Typography variant="body2" sx={{ color: '#6B7165', mb: 0.5 }}>
+        {site?.name ?? '—'}
+      </Typography>
+      <Typography variant="h5" sx={{ fontWeight: 600, color: '#3A4445' }}>
+        {season?.name ?? 'Planting Season'}
+      </Typography>
+      <Typography variant="body2" sx={{ color: '#6B7165', mt: 1 }}>
+        Coming soon.
+      </Typography>
+    </Box>
+  );
+}
+
+function SeedlingsInventory() {
+  return (
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h5" sx={{ fontWeight: 600, color: '#3A4445' }}>
+        Seedlings Inventory
+      </Typography>
+      <Typography variant="body2" sx={{ color: '#6B7165', mt: 1 }}>
+        Coming soon.
+      </Typography>
+    </Box>
+  );
+}
 
 const BASE = '/prototypes/planting-planning-michael-jyversion';
 const ICON_COLOR = '#7F785C';
@@ -74,8 +108,10 @@ export default function PlantingPlanningPrototype() {
       <Routes>
         <Route index element={<PlanningHome />} />
         <Route path="dashboard" element={<PlanningHome />} />
+        <Route path="seedlings-inventory" element={<SeedlingsInventory />} />
         <Route path="nursery-planning" element={<NurseryPlanning />} />
         <Route path="planting-seasons" element={<PlantingSeasons />} />
+        <Route path="planting-seasons/:seasonId" element={<PlantingSeasonDetail />} />
         <Route path="*" element={<Navigate to="" replace />} />
       </Routes>
     </AppShell>

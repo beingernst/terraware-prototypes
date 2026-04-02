@@ -5,6 +5,7 @@
  */
 
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router';
 import {
   Autocomplete,
   Box,
@@ -23,6 +24,7 @@ import {
 import {
   ExpandLess as ExpandLessIcon,
   ExpandMore as ExpandMoreIcon,
+  OpenInNew as OpenInNewIcon,
   WarningAmberOutlined as WarningIcon,
 } from '@mui/icons-material';
 import {
@@ -418,6 +420,7 @@ export function NurseryPlanning() {
                     <SiteSeasonDetailRow
                       key={season.id}
                       siteName={idx === 0 ? site.name : ''}
+                      seasonId={season.id}
                       seasonName={season.name}
                       target={target}
                       allocated={allocated}
@@ -487,9 +490,14 @@ export function NurseryPlanning() {
           <Typography variant="caption" sx={{ color: TEXT_SECONDARY, display: 'block' }}>
             Total In Nurseries
           </Typography>
-          <Typography sx={{ fontSize: 28, fontWeight: 600, color: TEXT_PRIMARY, lineHeight: 1.1 }}>
-            {summary.totalInNurseries.toLocaleString()}
-          </Typography>
+          <Link to="../seedlings-inventory" style={{ textDecoration: 'none', color: 'inherit' }}>
+            <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, justifyContent: 'center' }}>
+              <Typography sx={{ fontSize: 28, fontWeight: 600, color: PRIMARY_GREEN, lineHeight: 1.1 }}>
+                {summary.totalInNurseries.toLocaleString()}
+              </Typography>
+              <OpenInNewIcon sx={{ fontSize: 14, color: PRIMARY_GREEN, mb: '2px' }} />
+            </Box>
+          </Link>
         </Box>
 
         <Box sx={{ width: '1px', height: 48, bgcolor: BORDER_COLOR, flexShrink: 0, alignSelf: 'center' }} />
@@ -742,6 +750,7 @@ export function NurseryPlanning() {
 
 interface SiteSeasonDetailRowProps {
   siteName: string;       // empty string for non-first rows of same site
+  seasonId: string;
   seasonName: string;
   target: number;
   allocated: number;
@@ -752,6 +761,7 @@ interface SiteSeasonDetailRowProps {
 
 function SiteSeasonDetailRow({
   siteName,
+  seasonId,
   seasonName,
   target,
   allocated,
@@ -784,9 +794,12 @@ function SiteSeasonDetailRow({
         )}
       </TableCell>
       <TableCell>
-        <Typography variant="body2" sx={{ color: TEXT_SECONDARY }}>
+        <Link
+          to={`../planting-seasons/${seasonId}`}
+          style={{ textDecoration: 'underline', color: PRIMARY_GREEN, fontWeight: 500, fontSize: '0.875rem' }}
+        >
           {seasonName}
-        </Typography>
+        </Link>
       </TableCell>
       <TableCell align="right">
         <Typography variant="body2" sx={{ color: TEXT_SECONDARY }}>
