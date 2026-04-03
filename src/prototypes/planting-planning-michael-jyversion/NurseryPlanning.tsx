@@ -590,9 +590,9 @@ export function NurseryPlanning() {
           {seasonsExpanded ? <ExpandLessIcon sx={{ fontSize: 16 }} /> : <ExpandMoreIcon sx={{ fontSize: 16 }} />}
         </Box>
 
-        {/* Requested by date — further scopes seasons */}
+        {/* Plants needed by date — further scopes seasons */}
         <Typography variant="body2" sx={{ color: TEXT_SECONDARY, fontWeight: 500, flexShrink: 0 }}>
-          Requested by:
+          Plants needed by:
         </Typography>
         <TextField
           type="date"
