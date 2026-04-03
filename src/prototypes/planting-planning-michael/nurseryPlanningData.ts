@@ -196,12 +196,14 @@ export interface NurseryPlanningSeason {
   startDate: string;
   endDate: string;
   siteId: string;
+  nurseryId: string;
 }
 
 export const nurseryPlanningSeasons: NurseryPlanningSeason[] = [
-  { id: 'season-2024',   name: 'Feb - Nov 2024',    startDate: '2024-02-01', endDate: '2024-11-30', siteId: 'ps1' },
-  { id: 'season-active', name: 'Mar - Oct 2026',    startDate: '2026-03-01', endDate: '2026-10-31', siteId: 'ps2' },
-  { id: 'season-future', name: 'Nov - Mar 2026-27', startDate: '2026-11-12', endDate: '2027-03-23', siteId: 'ps3' },
+  { id: 'season-2024',      name: 'Feb - Nov 2024',    startDate: '2024-02-01', endDate: '2024-11-30', siteId: 'ps1', nurseryId: 'n1' },
+  { id: 'season-active',    name: 'Mar - Oct 2026',    startDate: '2026-03-01', endDate: '2026-10-31', siteId: 'ps2', nurseryId: 'n2' },
+  { id: 'season-future',    name: 'Nov - Mar 2026-27', startDate: '2026-11-12', endDate: '2027-03-23', siteId: 'ps3', nurseryId: 'n3' },
+  { id: 'season-ps2-2027',  name: 'Jan - Jun 2027',    startDate: '2027-01-01', endDate: '2027-06-30', siteId: 'ps2', nurseryId: 'n2' },
 ];
 
 function formatDateMDY(dateStr: string): string {
@@ -223,36 +225,46 @@ export interface SeasonAllocation {
 }
 
 export const initialSeasonAllocations: SeasonAllocation[] = [
-  // sp1 A'ali'i
-  { speciesId: 'sp1', seasonId: 'season-active', allocated: 300, target: 300 },
-  { speciesId: 'sp1', seasonId: 'season-future', allocated: 200, target: 200 },
-  // sp2 'Aweoweo
-  { speciesId: 'sp2', seasonId: 'season-active', allocated: 150, target: 250 },
-  { speciesId: 'sp2', seasonId: 'season-future', allocated: 100, target: 150 },
-  // sp3 Pili
-  { speciesId: 'sp3', seasonId: 'season-active', allocated: 60, target: 200 },
-  { speciesId: 'sp3', seasonId: 'season-future', allocated: 20, target: 100 },
-  // sp4 Wiliwili
-  { speciesId: 'sp4', seasonId: 'season-active', allocated: 150, target: 150 },
-  { speciesId: 'sp4', seasonId: 'season-future', allocated: 50, target: 50 },
-  // sp5 Naio
-  { speciesId: 'sp5', seasonId: 'season-active', allocated: 100, target: 180 },
-  { speciesId: 'sp5', seasonId: 'season-future', allocated: 30, target: 120 },
-  // sp6 'Ilima
-  { speciesId: 'sp6', seasonId: 'season-active', allocated: 120, target: 100 },
-  { speciesId: 'sp6', seasonId: 'season-future', allocated: 60, target: 50 },
-  // sp7 Ma'o
-  { speciesId: 'sp7', seasonId: 'season-active', allocated: 40, target: 150 },
-  { speciesId: 'sp7', seasonId: 'season-future', allocated: 20, target: 100 },
-  // sp8 Koa
-  { speciesId: 'sp8', seasonId: 'season-active', allocated: 200, target: 200 },
-  { speciesId: 'sp8', seasonId: 'season-future', allocated: 100, target: 100 },
-  // sp9 'Ohi'a Lehua
-  { speciesId: 'sp9', seasonId: 'season-active', allocated: 150, target: 300 },
-  { speciesId: 'sp9', seasonId: 'season-future', allocated: 50, target: 200 },
-  // sp10 Mamane
-  { speciesId: 'sp10', seasonId: 'season-active', allocated: 0, target: 100 },
-  { speciesId: 'sp10', seasonId: 'season-future', allocated: 0, target: 80 },
+  // season-2024 — Pu'u Wa'awa'a (ps1, Waimea Nursery)
+  { speciesId: 'sp1',  seasonId: 'season-2024', allocated: 200, target: 250 },
+  { speciesId: 'sp2',  seasonId: 'season-2024', allocated: 80,  target: 150 },
+  { speciesId: 'sp3',  seasonId: 'season-2024', allocated: 0,   target: 100 },
+  { speciesId: 'sp4',  seasonId: 'season-2024', allocated: 80,  target: 80  },
+  { speciesId: 'sp5',  seasonId: 'season-2024', allocated: 50,  target: 100 },
+  { speciesId: 'sp6',  seasonId: 'season-2024', allocated: 100, target: 120 },
+  { speciesId: 'sp8',  seasonId: 'season-2024', allocated: 150, target: 150 },
+
+  // season-active — Mauna Meadows (ps2, Kona Nursery)
+  { speciesId: 'sp1',  seasonId: 'season-active', allocated: 300, target: 300 },
+  { speciesId: 'sp2',  seasonId: 'season-active', allocated: 150, target: 250 },
+  { speciesId: 'sp3',  seasonId: 'season-active', allocated: 60,  target: 200 },
+  { speciesId: 'sp4',  seasonId: 'season-active', allocated: 150, target: 150 },
+  { speciesId: 'sp5',  seasonId: 'season-active', allocated: 100, target: 180 },
+  { speciesId: 'sp6',  seasonId: 'season-active', allocated: 120, target: 100 },
+  { speciesId: 'sp7',  seasonId: 'season-active', allocated: 40,  target: 150 },
+  { speciesId: 'sp8',  seasonId: 'season-active', allocated: 200, target: 200 },
+  { speciesId: 'sp9',  seasonId: 'season-active', allocated: 150, target: 300 },
+  { speciesId: 'sp10', seasonId: 'season-active', allocated: 0,   target: 100 },
+
+  // season-future — Ocean View Lands (ps3, Hilo Nursery)
+  { speciesId: 'sp1',  seasonId: 'season-future', allocated: 200, target: 200 },
+  { speciesId: 'sp2',  seasonId: 'season-future', allocated: 100, target: 150 },
+  { speciesId: 'sp3',  seasonId: 'season-future', allocated: 20,  target: 100 },
+  { speciesId: 'sp4',  seasonId: 'season-future', allocated: 50,  target: 50  },
+  { speciesId: 'sp5',  seasonId: 'season-future', allocated: 30,  target: 120 },
+  { speciesId: 'sp6',  seasonId: 'season-future', allocated: 60,  target: 50  },
+  { speciesId: 'sp7',  seasonId: 'season-future', allocated: 20,  target: 100 },
+  { speciesId: 'sp8',  seasonId: 'season-future', allocated: 100, target: 100 },
+  { speciesId: 'sp9',  seasonId: 'season-future', allocated: 50,  target: 200 },
+  { speciesId: 'sp10', seasonId: 'season-future', allocated: 0,   target: 80  },
+
+  // season-ps2-2027 — Mauna Meadows second season (ps2, Kona Nursery)
+  // Species duplicated from season-active to demonstrate multi-season rows
+  { speciesId: 'sp1',  seasonId: 'season-ps2-2027', allocated: 0,   target: 150 },
+  { speciesId: 'sp5',  seasonId: 'season-ps2-2027', allocated: 0,   target: 80  },
+  { speciesId: 'sp8',  seasonId: 'season-ps2-2027', allocated: 100, target: 100 },
+  { speciesId: 'sp9',  seasonId: 'season-ps2-2027', allocated: 0,   target: 200 },
+  { speciesId: 'sp10', seasonId: 'season-ps2-2027', allocated: 0,   target: 60  },
 ];
 
 export function getSeasonAllocationsForSpecies(speciesId: string): SeasonAllocation[] {
