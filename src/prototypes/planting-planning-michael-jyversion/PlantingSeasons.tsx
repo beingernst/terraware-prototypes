@@ -338,7 +338,7 @@ function getMockBatches(speciesId: string): string[] {
 function WithdrawalDetailsScreen({
   speciesId,
   species,
-  substratumName,
+  substratumName: _substratumName,
   remaining,
   onCancel,
   onNext,
