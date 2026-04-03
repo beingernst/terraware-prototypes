@@ -15,7 +15,6 @@
  */
 
 import { useState, useMemo, useCallback } from "react";
-import { useNavigate } from "react-router";
 import { Page } from "@/components/layout";
 import { Card } from "@/components/core";
 import {
@@ -37,13 +36,10 @@ import {
   Remove as RemoveIcon,
 } from "@mui/icons-material";
 import {
-  mockSite,
   MONTHS,
-  formatMonthRanges,
   getSelectionPosition,
   getBorderRadiusForPosition,
 } from "./mockData";
-import type { PlantingSeason } from "./mockData";
 
 // Colors
 const HEADER_BG = "#F5F5F0";
@@ -155,8 +151,6 @@ function schedulesEqual(a: PlantingSchedule, b: PlantingSchedule): boolean {
 }
 
 export default function PlanScreen() {
-  const navigate = useNavigate();
-
   // State for whether user has started planning
   const [hasPlan, setHasPlan] = useState(false);
 

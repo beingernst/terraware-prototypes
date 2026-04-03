@@ -74,6 +74,8 @@ export interface NavSection {
 export interface SidebarProps {
   sections?: NavSection[];
   showLanguageSelector?: boolean;
+  /** Keep all expandable sections open, disabling collapse toggle */
+  alwaysExpanded?: boolean;
 }
 
 // Default navigation sections matching production
@@ -150,6 +152,7 @@ const defaultSections: NavSection[] = [
 export function Sidebar({
   sections = defaultSections,
   showLanguageSelector = true,
+  alwaysExpanded = false,
 }: SidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -193,7 +196,7 @@ export function Sidebar({
   // Render a single navigation item
   const renderNavItem = (item: NavItem) => {
     const hasChildren = item.children && item.children.length > 0;
-    const isOpen = openSections[item.label];
+    const isOpen = alwaysExpanded || openSections[item.label];
     const active = item.path ? isActive(item.path) : false;
 
     return (
