@@ -1,11 +1,9 @@
 import { Routes, Route, Navigate, useParams } from 'react-router';
-import { Box, Typography } from '@mui/material';
-import { nurseryPlanningSeasons, plantingSites } from './nurseryPlanningData';
 import { AppShell } from '@/components/navigation';
 import type { NavSection } from '@/components/navigation';
 import { PlanningHome } from './PlanningHome';
 import { NurseryPlanning } from './NurseryPlanning';
-import { PlantingSeasons } from './PlantingSeasons';
+import { PlantingSeasons, WithdrawalLogView } from './PlantingSeasons';
 import {
   HomeOutlined as HomeIcon,
   SyncAlt as SpeciesIcon,
@@ -16,21 +14,7 @@ import {
 
 function PlantingSeasonDetail() {
   const { seasonId } = useParams<{ seasonId: string }>();
-  const season = nurseryPlanningSeasons.find((s) => s.id === seasonId);
-  const site = season ? plantingSites.find((p) => p.id === season.siteId) : undefined;
-  return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="body2" sx={{ color: '#6B7165', mb: 0.5 }}>
-        {site?.name ?? '—'}
-      </Typography>
-      <Typography variant="h5" sx={{ fontWeight: 600, color: '#3A4445' }}>
-        {season?.name ?? 'Planting Season'}
-      </Typography>
-      <Typography variant="body2" sx={{ color: '#6B7165', mt: 1 }}>
-        Coming soon.
-      </Typography>
-    </Box>
-  );
+  return <PlantingSeasons initialSeasonId={seasonId} />;
 }
 
 function SeedlingsInventory() {
@@ -81,7 +65,7 @@ const sections: NavSection[] = [
         children: [
           { label: 'Inventory', path: `${BASE}/seedlings-inventory` },
           { label: 'Nursery Planning', path: `${BASE}/nursery-planning` },
-          { label: 'Withdrawal Log', path: `${BASE}/withdrawal-log` },
+          { label: 'Withdrawals', path: `${BASE}/withdrawal-log` },
         ],
       },
     ],
@@ -112,6 +96,7 @@ export default function PlantingPlanningPrototype() {
         <Route path="nursery-planning" element={<NurseryPlanning />} />
         <Route path="planting-seasons" element={<PlantingSeasons />} />
         <Route path="planting-seasons/:seasonId" element={<PlantingSeasonDetail />} />
+        <Route path="withdrawal-log" element={<WithdrawalLogView />} />
         <Route path="*" element={<Navigate to="" replace />} />
       </Routes>
     </AppShell>

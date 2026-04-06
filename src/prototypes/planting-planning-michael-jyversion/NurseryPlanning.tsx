@@ -11,6 +11,7 @@ import {
   Box,
   Chip,
   LinearProgress,
+  Popover,
   Table,
   TableBody,
   TableCell,
@@ -61,7 +62,7 @@ const COLOR_GAP = '#F44336';
 function getProgressColor(allocated: number, target: number): string {
   if (target === 0) return COLOR_FULFILLED;
   const ratio = allocated / target;
-  if (ratio >= 1) return COLOR_FULFILLED;
+  if (ratio >= 1)  return COLOR_FULFILLED;
   if (ratio > 0.1) return COLOR_PARTIAL;
   return COLOR_GAP;
 }
@@ -246,31 +247,11 @@ export function NurseryPlanning() {
         header: 'Nurseries',
         size: 110,
         enableColumnFilter: false,
-        Cell: ({ cell, row }) => {
-          const inventoryItems = getNurseryInventoryForSpecies(row.original.speciesId);
-          const tooltipContent = (
-            <Box sx={{ p: 0.5 }}>
-              {inventoryItems.map((inv) => {
-                const nursery = nurseriesData.find((n) => n.id === inv.nurseryId);
-                return (
-                  <Box key={inv.nurseryId} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
-                    <Typography variant="caption">{nursery?.name ?? inv.nurseryId}</Typography>
-                    <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                      {inv.quantity.toLocaleString()}
-                    </Typography>
-                  </Box>
-                );
-              })}
-            </Box>
-          );
-          return (
-            <Tooltip title={tooltipContent} placement="right" arrow>
-              <Typography variant="body2" sx={{ color: TEXT_SECONDARY, fontSize: '0.8rem', whiteSpace: 'normal', lineHeight: 1.4, cursor: 'default' }}>
-                {cell.getValue<string>()}
-              </Typography>
-            </Tooltip>
-          );
-        },
+        Cell: ({ cell }) => (
+          <Typography variant="body2" sx={{ color: TEXT_SECONDARY, fontSize: '0.8rem', whiteSpace: 'normal', lineHeight: 1.4 }}>
+            {cell.getValue<string>()}
+          </Typography>
+        ),
       },
       {
         accessorKey: 'totalInventory',
@@ -279,10 +260,12 @@ export function NurseryPlanning() {
         enableColumnFilter: false,
         muiTableHeadCellProps: { align: 'right' },
         muiTableBodyCellProps: { align: 'right' },
-        Cell: ({ cell }) => (
-          <Typography variant="body2" sx={{ color: TEXT_PRIMARY }}>
-            {cell.getValue<number>().toLocaleString()}
-          </Typography>
+        Cell: ({ cell, row }) => (
+          <InventoryCell
+            speciesId={row.original.speciesId}
+            totalInventory={cell.getValue<number>()}
+            isShort={row.original.target > row.original.totalInventory}
+          />
         ),
       },
       {
@@ -506,9 +489,14 @@ export function NurseryPlanning() {
           <Typography variant="caption" sx={{ color: TEXT_SECONDARY, display: 'block' }}>
             Requested
           </Typography>
-          <Typography sx={{ fontSize: 28, fontWeight: 600, lineHeight: 1.1, color: summary.totalTarget > summary.totalInNurseries ? COLOR_GAP : TEXT_PRIMARY }}>
-            {summary.totalTarget.toLocaleString()}
-          </Typography>
+          <Link to="../planting-seasons" style={{ textDecoration: 'none', color: 'inherit' }}>
+            <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, justifyContent: 'center' }}>
+              <Typography sx={{ fontSize: 28, fontWeight: 600, lineHeight: 1.1, color: summary.totalTarget > summary.totalInNurseries ? COLOR_GAP : PRIMARY_GREEN }}>
+                {summary.totalTarget.toLocaleString()}
+              </Typography>
+              <OpenInNewIcon sx={{ fontSize: 14, color: summary.totalTarget > summary.totalInNurseries ? COLOR_GAP : PRIMARY_GREEN, mb: '2px' }} />
+            </Box>
+          </Link>
         </Box>
 
         <Box sx={{ width: '1px', height: 48, bgcolor: BORDER_COLOR, flexShrink: 0, alignSelf: 'center' }} />
@@ -636,47 +624,55 @@ export function NurseryPlanning() {
         />
 
         <Box sx={{ display: 'flex', border: `1px solid ${BORDER_COLOR}`, borderRadius: 1, overflow: 'hidden' }}>
-          {(['all', 'fulfilled', 'partial', 'gap'] as FulfillmentFilter[]).map((opt) => (
-            <Box
-              key={opt}
-              onClick={() => setFulfillmentFilter(opt)}
-              sx={{
-                px: 1.5,
-                py: 0.5,
-                cursor: 'pointer',
-                fontSize: '0.8rem',
-                bgcolor: fulfillmentFilter === opt ? PRIMARY_GREEN : '#fff',
-                color: fulfillmentFilter === opt ? '#fff' : TEXT_SECONDARY,
-                borderRight: opt !== 'gap' ? `1px solid ${BORDER_COLOR}` : 'none',
-                '&:hover': { bgcolor: fulfillmentFilter === opt ? PRIMARY_GREEN : HEADER_BG },
-                textTransform: 'capitalize',
-              }}
-            >
-              {opt}
-            </Box>
+          {([
+            { opt: 'all',       label: 'All',       tip: 'Show all species' },
+            { opt: 'fulfilled', label: 'Fulfilled',  tip: 'Species where allocated inventory meets or exceeds the target (100%)' },
+            { opt: 'partial',   label: 'Partial',    tip: 'Species where some inventory is allocated but the target is not yet met' },
+            { opt: 'gap',       label: 'Gap',        tip: 'Species with a target but zero inventory allocated' },
+          ] as { opt: FulfillmentFilter; label: string; tip: string }[]).map(({ opt, label, tip }) => (
+            <Tooltip key={opt} title={tip} placement="bottom" arrow>
+              <Box
+                onClick={() => setFulfillmentFilter(opt)}
+                sx={{
+                  px: 1.5,
+                  py: 0.5,
+                  cursor: 'pointer',
+                  fontSize: '0.8rem',
+                  bgcolor: fulfillmentFilter === opt ? PRIMARY_GREEN : '#fff',
+                  color: fulfillmentFilter === opt ? '#fff' : TEXT_SECONDARY,
+                  borderRight: opt !== 'gap' ? `1px solid ${BORDER_COLOR}` : 'none',
+                  '&:hover': { bgcolor: fulfillmentFilter === opt ? PRIMARY_GREEN : HEADER_BG },
+                  textTransform: 'capitalize',
+                }}
+              >
+                {label}
+              </Box>
+            </Tooltip>
           ))}
         </Box>
 
-        <ToggleButton
-          value="needs-attention"
-          selected={needsAttention}
-          onChange={() => setNeedsAttention((prev) => !prev)}
-          size="small"
-          sx={{
-            border: `1px solid ${BORDER_COLOR}`,
-            borderRadius: 1,
-            px: 1.5,
-            fontSize: '0.8rem',
-            textTransform: 'none',
-            color: needsAttention ? '#fff' : TEXT_SECONDARY,
-            bgcolor: needsAttention ? COLOR_GAP : '#fff',
-            '&.Mui-selected': { bgcolor: COLOR_GAP, color: '#fff' },
-            '&.Mui-selected:hover': { bgcolor: COLOR_GAP },
-          }}
-        >
-          <WarningIcon sx={{ fontSize: 14, mr: 0.5 }} />
-          Needs Attention
-        </ToggleButton>
+        <Tooltip title="Species where the target hasn't been fully allocated, or the nursery doesn't have enough inventory to cover the target" placement="bottom" arrow>
+          <ToggleButton
+            value="needs-attention"
+            selected={needsAttention}
+            onChange={() => setNeedsAttention((prev) => !prev)}
+            size="small"
+            sx={{
+              border: `1px solid ${BORDER_COLOR}`,
+              borderRadius: 1,
+              px: 1.5,
+              fontSize: '0.8rem',
+              textTransform: 'none',
+              color: needsAttention ? '#fff' : TEXT_SECONDARY,
+              bgcolor: needsAttention ? COLOR_GAP : '#fff',
+              '&.Mui-selected': { bgcolor: COLOR_GAP, color: '#fff' },
+              '&.Mui-selected:hover': { bgcolor: COLOR_GAP },
+            }}
+          >
+            <WarningIcon sx={{ fontSize: 14, mr: 0.5 }} />
+            Needs Attention
+          </ToggleButton>
+        </Tooltip>
 
         {(speciesSearch || siteFilter.length > 0 || nurseryFilter.length > 0 || fulfillmentFilter !== 'all' || needsAttention) && (
           <Typography
@@ -746,6 +742,58 @@ export function NurseryPlanning() {
   );
 }
 
+// --- Sub-component for the clickable inventory number with nursery breakdown popover ---
+
+function InventoryCell({ speciesId, totalInventory, isShort }: {
+  speciesId: string;
+  totalInventory: number;
+  isShort: boolean;
+}) {
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  const inventoryItems = getNurseryInventoryForSpecies(speciesId);
+
+  return (
+    <>
+      <Typography
+        variant="body2"
+        onClick={(e) => { e.stopPropagation(); setAnchor(e.currentTarget); }}
+        sx={{
+          color: isShort ? COLOR_GAP : TEXT_PRIMARY,
+          cursor: 'pointer',
+          textDecoration: 'underline',
+          textDecorationStyle: 'dotted',
+          textUnderlineOffset: 3,
+        }}
+      >
+        {totalInventory.toLocaleString()}
+      </Typography>
+      <Popover
+        open={Boolean(anchor)}
+        anchorEl={anchor}
+        onClose={() => setAnchor(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        slotProps={{ paper: { sx: { p: 1.5, minWidth: 160 } } }}
+      >
+        <Typography variant="caption" sx={{ color: TEXT_SECONDARY, display: 'block', mb: 0.5 }}>
+          Nursery breakdown
+        </Typography>
+        {inventoryItems.map((inv) => {
+          const nursery = nurseriesData.find((n) => n.id === inv.nurseryId);
+          return (
+            <Box key={inv.nurseryId} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+              <Typography variant="body2">{nursery?.name ?? inv.nurseryId}</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                {inv.quantity.toLocaleString()}
+              </Typography>
+            </Box>
+          );
+        })}
+      </Popover>
+    </>
+  );
+}
+
 // --- Sub-component for editable site × season rows in the detail panel ---
 
 interface SiteSeasonDetailRowProps {
@@ -775,12 +823,22 @@ function SiteSeasonDetailRow({
   const handleChange = (raw: string) => {
     setLocalValue(raw);
     const num = parseInt(raw, 10);
-    if (!isNaN(num) && num >= 0) {
+    if (!isNaN(num) && num >= 0 && num <= target) {
       onUpdate(num);
     }
   };
 
+  const handleBlur = () => {
+    setFocused(false);
+    const num = parseInt(localValue, 10);
+    if (!isNaN(num) && num > target) {
+      setLocalValue(String(target));
+      onUpdate(target);
+    }
+  };
+
   const localNum = parseInt(localValue, 10);
+  const isOver = !isNaN(localNum) && localNum > target;
   const effectiveAllocated = isNaN(localNum) || localNum < 0 ? allocated : localNum;
   const remaining = target - effectiveAllocated;
 
@@ -812,11 +870,13 @@ function SiteSeasonDetailRow({
           value={localValue}
           onChange={(e) => handleChange(e.target.value)}
           onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
+          onBlur={handleBlur}
           onClick={(e) => e.stopPropagation()}
+          error={isOver}
+          helperText={isOver ? `Max: ${target.toLocaleString()} (requested)` : undefined}
           slotProps={{
             input: { sx: { fontSize: '0.85rem', py: 0 } },
-            htmlInput: { style: { textAlign: 'right' } },
+            htmlInput: { style: { textAlign: 'right' }, min: 0, max: target },
           }}
           sx={{ width: 90 }}
         />
