@@ -6,6 +6,7 @@
  */
 
 import { useState, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router';
 import {
   Autocomplete,
   Box,
@@ -38,6 +39,7 @@ import {
   Edit as EditIcon,
   ExpandLess as ExpandLessIcon,
   ExpandMore as ExpandMoreIcon,
+  FilterAlt as FilterAltIcon,
   InfoOutlined as InfoOutlinedIcon,
   MoreVert as MoreVertIcon,
   OpenInNew as OpenInNewIcon,
@@ -77,15 +79,15 @@ function getRemainingPlantedColor(remaining: number, target: number): string {
 // --- Mock data ---
 
 const strata = [
-  { id: 'pst1', name: 'Black-White' },
-  { id: 'pst2', name: 'Stratum 2' },
+  { id: 'pst1', name: 'Black-White', siteId: 'ps1' },
+  { id: 'pst2', name: 'Stratum 2',   siteId: 'ps1' },
 ];
 
 const substrata = [
-  { id: 'st1', name: 'Black-White-East', stratumId: 'pst1' },
-  { id: 'st2', name: 'Black-White-West', stratumId: 'pst1' },
-  { id: 'st3', name: 'Substrata A', stratumId: 'pst2' },
-  { id: 'st4', name: 'Substrata B', stratumId: 'pst2' },
+  { id: 'st1', name: 'Black-White-East', stratumId: 'pst1', siteId: 'ps1' },
+  { id: 'st2', name: 'Black-White-West', stratumId: 'pst1', siteId: 'ps1' },
+  { id: 'st3', name: 'Substrata A',      stratumId: 'pst2', siteId: 'ps1' },
+  { id: 'st4', name: 'Substrata B',      stratumId: 'pst2', siteId: 'ps1' },
 ];
 
 const speciesList = [
@@ -151,34 +153,55 @@ interface PlantingWithdrawal {
   substratumId: string;
   speciesId: string;
   quantity: number;
+  nurseryName: string;
+  plantingSiteName: string;
+  plantingSeasonId: string;
+  purpose: string;
 }
 
 const mockWithdrawals: PlantingWithdrawal[] = [
-  { id: 'w1',  date: '2026-03-02', substratumId: 'st1', speciesId: 'sp1',  quantity: 120 },
-  { id: 'w2',  date: '2026-03-05', substratumId: 'st1', speciesId: 'sp2',  quantity: 85  },
-  { id: 'w3',  date: '2026-03-10', substratumId: 'st2', speciesId: 'sp3',  quantity: 200 },
-  { id: 'w4',  date: '2026-03-12', substratumId: 'st1', speciesId: 'sp4',  quantity: 60  },
-  { id: 'w5',  date: '2026-03-15', substratumId: 'st3', speciesId: 'sp5',  quantity: 150 },
-  { id: 'w6',  date: '2026-03-18', substratumId: 'st2', speciesId: 'sp6',  quantity: 90  },
-  { id: 'w7',  date: '2026-03-20', substratumId: 'st1', speciesId: 'sp7',  quantity: 110 },
-  { id: 'w8',  date: '2026-03-22', substratumId: 'st4', speciesId: 'sp8',  quantity: 75  },
-  { id: 'w9',  date: '2026-03-25', substratumId: 'st3', speciesId: 'sp2',  quantity: 130 },
-  { id: 'w10', date: '2026-03-28', substratumId: 'st1', speciesId: 'sp9',  quantity: 95  },
-  { id: 'w11', date: '2026-04-01', substratumId: 'st2', speciesId: 'sp10', quantity: 180 },
-  { id: 'w12', date: '2026-04-03', substratumId: 'st4', speciesId: 'sp1',  quantity: 55  },
-  { id: 'w13', date: '2026-04-05', substratumId: 'st1', speciesId: 'sp3',  quantity: 140 },
-  { id: 'w14', date: '2026-04-08', substratumId: 'st3', speciesId: 'sp11', quantity: 70  },
-  { id: 'w15', date: '2026-04-10', substratumId: 'st2', speciesId: 'sp12', quantity: 100 },
-  { id: 'w16', date: '2026-04-12', substratumId: 'st1', speciesId: 'sp5',  quantity: 160 },
-  { id: 'w17', date: '2026-04-15', substratumId: 'st4', speciesId: 'sp13', quantity: 45  },
-  { id: 'w18', date: '2026-04-18', substratumId: 'st3', speciesId: 'sp4',  quantity: 115 },
-  { id: 'w19', date: '2026-04-20', substratumId: 'st2', speciesId: 'sp14', quantity: 80  },
-  { id: 'w20', date: '2026-04-22', substratumId: 'st1', speciesId: 'sp6',  quantity: 135 },
-  { id: 'w21', date: '2026-04-25', substratumId: 'st4', speciesId: 'sp7',  quantity: 65  },
-  { id: 'w22', date: '2026-04-28', substratumId: 'st3', speciesId: 'sp15', quantity: 90  },
-  { id: 'w23', date: '2026-05-01', substratumId: 'st1', speciesId: 'sp8',  quantity: 105 },
-  { id: 'w24', date: '2026-05-04', substratumId: 'st2', speciesId: 'sp9',  quantity: 175 },
-  { id: 'w25', date: '2026-05-07', substratumId: 'st4', speciesId: 'sp16', quantity: 50  },
+  { id: 'w1',  date: '2026-03-02', substratumId: 'st1', speciesId: 'sp1',  quantity: 120, nurseryName: 'Waimea',  plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w2',  date: '2026-03-05', substratumId: 'st1', speciesId: 'sp2',  quantity: 85,  nurseryName: 'Kona',    plantingSiteName: 'Mauna Meadows',    plantingSeasonId: 'ps2-s2', purpose: 'Planting' },
+  { id: 'w3',  date: '2026-03-10', substratumId: 'st2', speciesId: 'sp3',  quantity: 200, nurseryName: 'Hilo',    plantingSiteName: 'Ocean View Lands', plantingSeasonId: 'ps3-s2', purpose: 'Planting' },
+  { id: 'w4',  date: '2026-03-12', substratumId: 'st1', speciesId: 'sp4',  quantity: 60,  nurseryName: 'Waimea',  plantingSiteName: 'Lapakahi',         plantingSeasonId: 'ps4-s1', purpose: 'Planting' },
+  { id: 'w5',  date: '2026-03-15', substratumId: 'st3', speciesId: 'sp5',  quantity: 150, nurseryName: 'Kona',    plantingSiteName: 'Kahua Ranch',      plantingSeasonId: 'ps5-s1', purpose: 'Planting' },
+  { id: 'w6',  date: '2026-03-18', substratumId: 'st2', speciesId: 'sp6',  quantity: 90,  nurseryName: 'Hilo',    plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w7',  date: '2026-03-20', substratumId: 'st1', speciesId: 'sp7',  quantity: 110, nurseryName: 'Waimea',  plantingSiteName: 'Mauna Meadows',    plantingSeasonId: 'ps2-s2', purpose: 'Planting' },
+  { id: 'w8',  date: '2026-03-22', substratumId: 'st4', speciesId: 'sp8',  quantity: 75,  nurseryName: 'Kona',    plantingSiteName: 'Ocean View Lands', plantingSeasonId: 'ps3-s2', purpose: 'Planting' },
+  { id: 'w9',  date: '2026-03-25', substratumId: 'st3', speciesId: 'sp2',  quantity: 130, nurseryName: 'Hilo',    plantingSiteName: 'Lapakahi',         plantingSeasonId: 'ps4-s1', purpose: 'Planting' },
+  { id: 'w10', date: '2026-03-28', substratumId: 'st1', speciesId: 'sp9',  quantity: 95,  nurseryName: 'Waimea',  plantingSiteName: 'Kahua Ranch',      plantingSeasonId: 'ps5-s1', purpose: 'Planting' },
+  { id: 'w11', date: '2026-04-01', substratumId: 'st2', speciesId: 'sp10', quantity: 180, nurseryName: 'Kona',    plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w12', date: '2026-04-03', substratumId: 'st4', speciesId: 'sp1',  quantity: 55,  nurseryName: 'Hilo',    plantingSiteName: 'Mauna Meadows',    plantingSeasonId: 'ps2-s2', purpose: 'Planting' },
+  { id: 'w13', date: '2026-04-05', substratumId: 'st1', speciesId: 'sp3',  quantity: 140, nurseryName: 'Waimea',  plantingSiteName: 'Ocean View Lands', plantingSeasonId: 'ps3-s2', purpose: 'Planting' },
+  { id: 'w14', date: '2026-04-08', substratumId: 'st3', speciesId: 'sp11', quantity: 70,  nurseryName: 'Kona',    plantingSiteName: 'Lapakahi',         plantingSeasonId: 'ps4-s1', purpose: 'Planting' },
+  { id: 'w15', date: '2026-04-10', substratumId: 'st2', speciesId: 'sp12', quantity: 100, nurseryName: 'Hilo',    plantingSiteName: 'Kahua Ranch',      plantingSeasonId: 'ps5-s1', purpose: 'Planting' },
+  { id: 'w16', date: '2026-04-12', substratumId: 'st1', speciesId: 'sp5',  quantity: 160, nurseryName: 'Waimea',  plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w17', date: '2026-04-15', substratumId: 'st4', speciesId: 'sp13', quantity: 45,  nurseryName: 'Kona',    plantingSiteName: 'Mauna Meadows',    plantingSeasonId: 'ps2-s2', purpose: 'Planting' },
+  { id: 'w18', date: '2026-04-18', substratumId: 'st3', speciesId: 'sp4',  quantity: 115, nurseryName: 'Hilo',    plantingSiteName: 'Ocean View Lands', plantingSeasonId: 'ps3-s2', purpose: 'Planting' },
+  { id: 'w19', date: '2026-04-20', substratumId: 'st2', speciesId: 'sp14', quantity: 80,  nurseryName: 'Waimea',  plantingSiteName: 'Lapakahi',         plantingSeasonId: 'ps4-s1', purpose: 'Planting' },
+  { id: 'w20', date: '2026-04-22', substratumId: 'st1', speciesId: 'sp6',  quantity: 135, nurseryName: 'Kona',    plantingSiteName: 'Kahua Ranch',      plantingSeasonId: 'ps5-s1', purpose: 'Planting' },
+  { id: 'w21', date: '2026-04-25', substratumId: 'st2', speciesId: 'sp7',  quantity: 65,  nurseryName: 'Hilo',    plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s3', purpose: 'Planting' },
+  { id: 'w22', date: '2026-04-28', substratumId: 'st3', speciesId: 'sp15', quantity: 90,  nurseryName: 'Waimea',  plantingSiteName: 'Mauna Meadows',    plantingSeasonId: 'ps2-s3', purpose: 'Planting' },
+  { id: 'w23', date: '2026-05-01', substratumId: 'st1', speciesId: 'sp8',  quantity: 105, nurseryName: 'Kona',    plantingSiteName: 'Ocean View Lands', plantingSeasonId: 'ps3-s2', purpose: 'Planting' },
+  { id: 'w24', date: '2026-05-04', substratumId: 'st2', speciesId: 'sp9',  quantity: 175, nurseryName: 'Hilo',    plantingSiteName: 'Lapakahi',         plantingSeasonId: 'ps4-s2', purpose: 'Planting' },
+  { id: 'w25', date: '2026-05-07', substratumId: 'st4', speciesId: 'sp16', quantity: 50,  nurseryName: 'Waimea',  plantingSiteName: 'Kahua Ranch',      plantingSeasonId: 'ps5-s1', purpose: 'Planting' },
+  // ps1-s2 (Season 2026, Pu'u Wa'awa'a) — one record per species/substratum combination
+  { id: 'w26', date: '2026-03-04', substratumId: 'st1', speciesId: 'sp2',  quantity: 85,  nurseryName: 'Waimea',  plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w27', date: '2026-03-08', substratumId: 'st1', speciesId: 'sp3',  quantity: 110, nurseryName: 'Kona',    plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w28', date: '2026-03-11', substratumId: 'st1', speciesId: 'sp4',  quantity: 70,  nurseryName: 'Hilo',    plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w29', date: '2026-03-14', substratumId: 'st2', speciesId: 'sp7',  quantity: 110, nurseryName: 'Waimea',  plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w30', date: '2026-03-17', substratumId: 'st2', speciesId: 'sp8',  quantity: 75,  nurseryName: 'Kona',    plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w31', date: '2026-03-19', substratumId: 'st2', speciesId: 'sp9',  quantity: 95,  nurseryName: 'Hilo',    plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w32', date: '2026-03-23', substratumId: 'st3', speciesId: 'sp11', quantity: 70,  nurseryName: 'Waimea',  plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w33', date: '2026-03-26', substratumId: 'st3', speciesId: 'sp12', quantity: 100, nurseryName: 'Kona',    plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w34', date: '2026-03-30', substratumId: 'st3', speciesId: 'sp13', quantity: 45,  nurseryName: 'Hilo',    plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w35', date: '2026-04-02', substratumId: 'st3', speciesId: 'sp14', quantity: 80,  nurseryName: 'Waimea',  plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w36', date: '2026-04-06', substratumId: 'st3', speciesId: 'sp15', quantity: 90,  nurseryName: 'Kona',    plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w37', date: '2026-04-09', substratumId: 'st4', speciesId: 'sp16', quantity: 50,  nurseryName: 'Hilo',    plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w38', date: '2026-04-13', substratumId: 'st4', speciesId: 'sp17', quantity: 65,  nurseryName: 'Waimea',  plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w39', date: '2026-04-16', substratumId: 'st4', speciesId: 'sp18', quantity: 55,  nurseryName: 'Kona',    plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w40', date: '2026-04-19', substratumId: 'st4', speciesId: 'sp19', quantity: 80,  nurseryName: 'Hilo',    plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w41', date: '2026-04-23', substratumId: 'st4', speciesId: 'sp20', quantity: 75,  nurseryName: 'Waimea',  plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
 ];
 
 // --- Helpers ---
@@ -208,15 +231,34 @@ function isSeasonActive(startDate: string, endDate: string): boolean {
   return today >= new Date(startDate + 'T00:00:00') && today <= new Date(endDate + 'T23:59:59');
 }
 
-// Black-White-East gets all 20 species; Black-White-West starts empty
+// 5 species per substratum, withdrawn values aligned to mockWithdrawals for ps1-s2
 function makeInitialStratumTargets(): StratumTarget[] {
-  return speciesList.map((sp) => ({
-    speciesId: sp.id,
-    stratumId: 'st1',
-    target: Math.floor(Math.random() * 150 + 50),
-    readyToPlant: Math.floor(Math.random() * 100 + 20),
-    withdrawn: Math.floor(Math.random() * 50),
-  }));
+  return [
+    // st1 — Black-White-East
+    { speciesId: 'sp1',  stratumId: 'st1', target: 200, readyToPlant: 180, withdrawn: 120 },
+    { speciesId: 'sp2',  stratumId: 'st1', target: 150, readyToPlant: 130, withdrawn: 85  },
+    { speciesId: 'sp3',  stratumId: 'st1', target: 180, readyToPlant: 160, withdrawn: 110 },
+    { speciesId: 'sp4',  stratumId: 'st1', target: 120, readyToPlant: 100, withdrawn: 70  },
+    { speciesId: 'sp5',  stratumId: 'st1', target: 250, readyToPlant: 220, withdrawn: 160 },
+    // st2 — Black-White-West
+    { speciesId: 'sp6',  stratumId: 'st2', target: 160, readyToPlant: 140, withdrawn: 90  },
+    { speciesId: 'sp7',  stratumId: 'st2', target: 200, readyToPlant: 175, withdrawn: 110 },
+    { speciesId: 'sp8',  stratumId: 'st2', target: 140, readyToPlant: 120, withdrawn: 75  },
+    { speciesId: 'sp9',  stratumId: 'st2', target: 175, readyToPlant: 150, withdrawn: 95  },
+    { speciesId: 'sp10', stratumId: 'st2', target: 220, readyToPlant: 200, withdrawn: 180 },
+    // st3 — Substrata A
+    { speciesId: 'sp11', stratumId: 'st3', target: 130, readyToPlant: 110, withdrawn: 70  },
+    { speciesId: 'sp12', stratumId: 'st3', target: 160, readyToPlant: 140, withdrawn: 100 },
+    { speciesId: 'sp13', stratumId: 'st3', target: 100, readyToPlant: 80,  withdrawn: 45  },
+    { speciesId: 'sp14', stratumId: 'st3', target: 140, readyToPlant: 120, withdrawn: 80  },
+    { speciesId: 'sp15', stratumId: 'st3', target: 150, readyToPlant: 130, withdrawn: 90  },
+    // st4 — Substrata B
+    { speciesId: 'sp16', stratumId: 'st4', target: 110, readyToPlant: 90,  withdrawn: 50  },
+    { speciesId: 'sp17', stratumId: 'st4', target: 130, readyToPlant: 110, withdrawn: 65  },
+    { speciesId: 'sp18', stratumId: 'st4', target: 120, readyToPlant: 100, withdrawn: 55  },
+    { speciesId: 'sp19', stratumId: 'st4', target: 145, readyToPlant: 125, withdrawn: 80  },
+    { speciesId: 'sp20', stratumId: 'st4', target: 160, readyToPlant: 140, withdrawn: 75  },
+  ];
 }
 
 // --- Planting Progress tab ---
@@ -338,23 +380,48 @@ function getMockBatches(speciesId: string): string[] {
 function WithdrawalDetailsScreen({
   speciesId,
   species,
-  substratumName: _substratumName,
   remaining,
   onCancel,
   onNext,
+  initialSiteId,
+  initialSeasonId,
+  initialStratumId,
+  initialSubstratumId,
 }: {
   speciesId: string;
   species: { scientificName: string; commonName: string } | null;
-  substratumName: string;
   remaining: number;
   onCancel: () => void;
   onNext: (quantity: number) => void;
+  initialSiteId?: string;
+  initialSeasonId?: string;
+  initialStratumId?: string;
+  initialSubstratumId?: string;
 }) {
   const [purpose, setPurpose] = useState<WithdrawalPurpose>('Planting');
   const [fromNursery, setFromNursery] = useState('');
-  const [toNursery, setToNursery] = useState('');
+  const [selectedSiteId, setSelectedSiteId] = useState(initialSiteId ?? '');
+  const [selectedSeasonId, setSelectedSeasonId] = useState(initialSeasonId ?? '');
+  const [selectedStratumId, setSelectedStratumId] = useState(initialStratumId ?? '');
+  const [selectedSubstratumId, setSelectedSubstratumId] = useState(initialSubstratumId ?? '');
   const [withdrawDate, setWithdrawDate] = useState(new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState('');
+
+  const seasonsForSite    = nurseryPlanningSeasons.filter((s) => s.siteId === selectedSiteId);
+  const strataForSite     = strata.filter((s) => s.siteId === selectedSiteId);
+  const substrataForStrat = substrata.filter((s) => s.stratumId === selectedStratumId);
+
+  const handleSiteChange = (siteId: string) => {
+    setSelectedSiteId(siteId);
+    setSelectedSeasonId('');
+    setSelectedStratumId('');
+    setSelectedSubstratumId('');
+  };
+
+  const handleStratumChange = (stratumId: string) => {
+    setSelectedStratumId(stratumId);
+    setSelectedSubstratumId('');
+  };
 
   const batches = getMockBatches(speciesId);
 
@@ -442,27 +509,103 @@ function WithdrawalDetailsScreen({
           {/* Divider */}
           <Box sx={{ borderTop: `1px solid ${BORDER_COLOR}` }} />
 
-          {/* To: Planting Site */}
-          <Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.75 }}>
-              <Typography variant="caption" sx={{ color: TEXT_SECONDARY, fontWeight: 500 }}>
-                To: Planting Site *
-              </Typography>
-              <InfoOutlinedIcon sx={{ fontSize: 14, color: TEXT_SECONDARY }} />
-            </Box>
-            <Select
-              displayEmpty
-              value={toNursery}
-              onChange={(e) => setToNursery(e.target.value)}
-              fullWidth
-              size="small"
-              renderValue={(v) => v || <Typography sx={{ color: TEXT_SECONDARY, fontSize: '0.875rem' }}>Select...</Typography>}
-            >
-              {plantingSites.map((s) => (
-                <MenuItem key={s.id} value={s.name}>{s.name}</MenuItem>
-              ))}
-            </Select>
-          </Box>
+          {purpose === 'Planting' && (
+            <>
+              {/* To: Planting Site */}
+              <Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.75 }}>
+                  <Typography variant="caption" sx={{ color: TEXT_SECONDARY, fontWeight: 500 }}>
+                    To: Planting Site *
+                  </Typography>
+                  <InfoOutlinedIcon sx={{ fontSize: 14, color: TEXT_SECONDARY }} />
+                </Box>
+                <Select
+                  displayEmpty
+                  value={selectedSiteId}
+                  onChange={(e) => handleSiteChange(e.target.value)}
+                  fullWidth
+                  size="small"
+                  renderValue={(v) => {
+                    const site = plantingSites.find((s) => s.id === v);
+                    return site ? site.name : <Typography sx={{ color: TEXT_SECONDARY, fontSize: '0.875rem' }}>Select...</Typography>;
+                  }}
+                >
+                  {plantingSites.map((s) => (
+                    <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+                  ))}
+                </Select>
+              </Box>
+
+              {/* Planting Season */}
+              <Box>
+                <Typography variant="caption" sx={{ color: TEXT_SECONDARY, fontWeight: 500, display: 'block', mb: 0.75 }}>
+                  Planting Season *
+                </Typography>
+                <Select
+                  displayEmpty
+                  value={selectedSeasonId}
+                  onChange={(e) => setSelectedSeasonId(e.target.value)}
+                  fullWidth
+                  size="small"
+                  disabled={!selectedSiteId}
+                  renderValue={(v) => {
+                    const season = seasonsForSite.find((s) => s.id === v);
+                    return season ? season.name : <Typography sx={{ color: TEXT_SECONDARY, fontSize: '0.875rem' }}>{selectedSiteId ? 'Select...' : 'Select a site first'}</Typography>;
+                  }}
+                >
+                  {seasonsForSite.map((s) => (
+                    <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+                  ))}
+                </Select>
+              </Box>
+
+              {/* To: Stratum */}
+              <Box>
+                <Typography variant="caption" sx={{ color: TEXT_SECONDARY, fontWeight: 500, display: 'block', mb: 0.75 }}>
+                  To: Stratum *
+                </Typography>
+                <Select
+                  displayEmpty
+                  value={selectedStratumId}
+                  onChange={(e) => handleStratumChange(e.target.value)}
+                  fullWidth
+                  size="small"
+                  disabled={!selectedSiteId}
+                  renderValue={(v) => {
+                    const stratum = strataForSite.find((s) => s.id === v);
+                    return stratum ? stratum.name : <Typography sx={{ color: TEXT_SECONDARY, fontSize: '0.875rem' }}>{selectedSiteId ? 'Select...' : 'Select a site first'}</Typography>;
+                  }}
+                >
+                  {strataForSite.map((s) => (
+                    <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+                  ))}
+                </Select>
+              </Box>
+
+              {/* To: Substratum */}
+              <Box>
+                <Typography variant="caption" sx={{ color: TEXT_SECONDARY, fontWeight: 500, display: 'block', mb: 0.75 }}>
+                  To: Substratum *
+                </Typography>
+                <Select
+                  displayEmpty
+                  value={selectedSubstratumId}
+                  onChange={(e) => setSelectedSubstratumId(e.target.value)}
+                  fullWidth
+                  size="small"
+                  disabled={!selectedStratumId}
+                  renderValue={(v) => {
+                    const sub = substrataForStrat.find((s) => s.id === v);
+                    return sub ? sub.name : <Typography sx={{ color: TEXT_SECONDARY, fontSize: '0.875rem' }}>{selectedStratumId ? 'Select...' : 'Select a stratum first'}</Typography>;
+                  }}
+                >
+                  {substrataForStrat.map((s) => (
+                    <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+                  ))}
+                </Select>
+              </Box>
+            </>
+          )}
 
           {/* Withdraw Date */}
           <TextField
@@ -526,12 +669,18 @@ function ViewPlantingSeasonView({
   onBack: () => void;
   stratumTargets: StratumTarget[];
   onStratumTargetsChange: (targets: StratumTarget[]) => void;
-  onNavigateToProgress: (substratumId: string) => void;
+  onNavigateToProgress: (params: { substratumId: string; speciesId?: string; seasonId: string; siteId: string }) => void;
   onSeasonUpdate: (updated: Season) => void;
 }) {
   const [addingToStratumId, setAddingToStratumId] = useState<string | null>(null);
   const [showAllSpecies, setShowAllSpecies] = useState<Set<string>>(new Set());
-  const [withdrawTarget, setWithdrawTarget] = useState<{ speciesId: string; substratumId: string } | null>(null);
+  const [withdrawTarget, setWithdrawTarget] = useState<{
+    speciesId: string;
+    substratumId: string;
+    plantingSiteId: string;
+    plantingSeasonId: string;
+    stratumId: string;
+  } | null>(null);
   const [editingNeedBy, setEditingNeedBy] = useState(false);
   const [draftNeedBy, setDraftNeedBy] = useState(season.needByDate ?? season.startDate ?? '');
   const [summaryExpanded, setSummaryExpanded] = useState(false);
@@ -665,7 +814,7 @@ function ViewPlantingSeasonView({
           if (substratumId) {
             return (
               <Box
-                onClick={() => onNavigateToProgress(substratumId)}
+                onClick={() => onNavigateToProgress({ substratumId, seasonId: season.id, siteId: season.siteId ?? '' })}
                 sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, cursor: 'pointer' }}
               >
                 <Typography variant="body2" sx={{ color: getWithdrawnColor(withdrawn, target) }}>
@@ -789,7 +938,7 @@ function ViewPlantingSeasonView({
                     </TableCell>
                     <TableCell align="right">
                       <Box
-                        onClick={() => onNavigateToProgress(substratumId)}
+                        onClick={() => onNavigateToProgress({ substratumId, speciesId: st.speciesId, seasonId: season.id, siteId: season.siteId ?? '' })}
                         sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, cursor: 'pointer', justifyContent: 'flex-end' }}
                       >
                         <Typography variant="body2" sx={{ color: getWithdrawnColor(st.withdrawn, st.target) }}>
@@ -810,7 +959,17 @@ function ViewPlantingSeasonView({
                           <Typography
                             variant="body2"
                             sx={{ color: PRIMARY_GREEN, cursor: 'pointer', '&:hover': { textDecoration: 'underline' }, whiteSpace: 'nowrap' }}
-                            onClick={(e) => { e.stopPropagation(); setWithdrawTarget({ speciesId: st.speciesId, substratumId }); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const sub = substrata.find((s) => s.id === substratumId);
+                              setWithdrawTarget({
+                                speciesId: st.speciesId,
+                                substratumId,
+                                plantingSiteId: season.siteId ?? '',
+                                plantingSeasonId: season.id,
+                                stratumId: sub?.stratumId ?? '',
+                              });
+                            }}
                           >
                             + Withdraw
                           </Typography>
@@ -929,8 +1088,11 @@ function ViewPlantingSeasonView({
       <WithdrawalDetailsScreen
         speciesId={withdrawTarget.speciesId}
         species={sp ?? null}
-        substratumName={sub?.name ?? ''}
         remaining={remaining}
+        initialSiteId={withdrawTarget.plantingSiteId}
+        initialSeasonId={withdrawTarget.plantingSeasonId}
+        initialStratumId={withdrawTarget.stratumId}
+        initialSubstratumId={withdrawTarget.substratumId}
         onCancel={() => setWithdrawTarget(null)}
         onNext={(quantity) => {
           onStratumTargetsChange(
@@ -1428,11 +1590,207 @@ function SeasonCard({ season, onViewSeason, onUpdate, onDelete, archived = false
   );
 }
 
+// --- Withdrawal Log page ---
+
+type WithdrawalRow = {
+  id: string;
+  date: string;
+  dateDisplay: string;
+  purpose: string;
+  nurseryName: string;
+  plantingSiteName: string;
+  plantingSeasonName: string;
+  stratumName: string;
+  substratumName: string;
+  speciesScientific: string;
+  speciesCommon: string;
+  quantity: number;
+};
+
+export function WithdrawalLogView() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initSubstratumId = searchParams.get('substratumId') ?? 'all';
+  const initPurpose      = searchParams.get('purpose')      ?? 'all';
+  const initSeasonId     = searchParams.get('seasonId')     ?? 'all';
+  const initSiteId       = searchParams.get('siteId')       ?? 'all';
+  const initSpeciesId    = searchParams.get('speciesId')    ?? 'all';
+
+  // Resolve display names once
+  const tableData = useMemo<WithdrawalRow[]>(() =>
+    [...mockWithdrawals]
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .map((w) => {
+        const sub = substrata.find((s) => s.id === w.substratumId);
+        const stratum = strata.find((s) => s.id === sub?.stratumId);
+        const sp = speciesList.find((s) => s.id === w.speciesId);
+        const season = nurseryPlanningSeasons.find((s) => s.id === w.plantingSeasonId);
+        return {
+          id: w.id,
+          date: w.date,
+          dateDisplay: formatDate(w.date),
+          purpose: w.purpose,
+          nurseryName: w.nurseryName,
+          plantingSiteName: w.plantingSiteName,
+          plantingSeasonName: season?.name ?? '—',
+          stratumName: stratum?.name ?? '—',
+          substratumName: sub?.name ?? '—',
+          speciesScientific: sp?.scientificName ?? '—',
+          speciesCommon: sp?.commonName ?? '',
+          quantity: w.quantity,
+        };
+      }),
+  []);
+
+  // Build initial MRT column filters from URL params
+  const initialColumnFilters = useMemo(() => {
+    const filters: { id: string; value: unknown }[] = [];
+    if (initPurpose !== 'all') filters.push({ id: 'purpose', value: initPurpose });
+    if (initSubstratumId !== 'all') {
+      const sub = substrata.find((s) => s.id === initSubstratumId);
+      if (sub) filters.push({ id: 'substratumName', value: [sub.name] });
+    }
+    if (initSeasonId !== 'all') {
+      const season = nurseryPlanningSeasons.find((s) => s.id === initSeasonId);
+      if (season) filters.push({ id: 'plantingSeasonName', value: [season.name] });
+    }
+    if (initSiteId !== 'all') {
+      const site = plantingSites.find((s) => s.id === initSiteId);
+      if (site) filters.push({ id: 'plantingSiteName', value: [site.name] });
+    }
+    if (initSpeciesId !== 'all') {
+      const sp = speciesList.find((s) => s.id === initSpeciesId);
+      if (sp) filters.push({ id: 'speciesScientific', value: [sp.scientificName] });
+    }
+    return filters;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const columns = useMemo<MRT_ColumnDef<WithdrawalRow>[]>(() => [
+    {
+      accessorKey: 'dateDisplay',
+      header: 'Date',
+      enableColumnFilter: false,
+      size: 120,
+      Cell: ({ cell }) => (
+        <Typography variant="body2" sx={{ color: PRIMARY_GREEN }}>
+          {cell.getValue<string>()}
+        </Typography>
+      ),
+    },
+    {
+      accessorKey: 'purpose',
+      header: 'Purpose',
+      size: 130,
+      filterVariant: 'select',
+      filterSelectOptions: ['Planting', 'Nursery Transfer', 'Dead', 'Other'],
+    },
+    {
+      accessorKey: 'nurseryName',
+      header: 'From: Nursery',
+      size: 140,
+      filterVariant: 'select',
+      filterSelectOptions: [...new Set(mockWithdrawals.map((w) => w.nurseryName))],
+    },
+    {
+      accessorKey: 'plantingSiteName',
+      header: 'Planting Site',
+      filterVariant: 'multi-select',
+      filterSelectOptions: [...new Set(mockWithdrawals.map((w) => w.plantingSiteName))],
+    },
+    {
+      accessorKey: 'plantingSeasonName',
+      header: 'Planting Season',
+      filterVariant: 'multi-select',
+      filterSelectOptions: [...new Set(nurseryPlanningSeasons.map((s) => s.name))],
+    },
+    {
+      accessorKey: 'stratumName',
+      header: 'To: Stratum',
+      filterVariant: 'multi-select',
+      filterSelectOptions: strata.map((s) => s.name),
+    },
+    {
+      accessorKey: 'substratumName',
+      header: 'To: Substratum',
+      filterVariant: 'multi-select',
+      filterSelectOptions: substrata.map((s) => s.name),
+    },
+    {
+      accessorKey: 'speciesScientific',
+      header: 'Species',
+      filterVariant: 'multi-select',
+      filterSelectOptions: [...new Set(tableData.map((r) => r.speciesScientific))],
+      Cell: ({ row }) => (
+        <>
+          <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
+            {row.original.speciesScientific}
+          </Typography>
+          <Typography variant="caption" sx={{ color: TEXT_SECONDARY }}>
+            {row.original.speciesCommon}
+          </Typography>
+        </>
+      ),
+    },
+    {
+      accessorKey: 'quantity',
+      header: 'Total Quantity',
+      enableColumnFilter: false,
+      size: 110,
+      muiTableHeadCellProps: { align: 'right' },
+      muiTableBodyCellProps: { align: 'right' },
+      Cell: ({ cell }) => (
+        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+          {cell.getValue<number>().toLocaleString()}
+        </Typography>
+      ),
+    },
+  ], [tableData]);
+
+  const table = useMaterialReactTable({
+    columns,
+    data: tableData,
+    initialState: {
+      density: 'compact',
+      showColumnFilters: initialColumnFilters.length > 0,
+      columnFilters: initialColumnFilters,
+      sorting: [{ id: 'dateDisplay', desc: false }],
+    },
+    enableColumnFilters: true,
+    enableGlobalFilter: true,
+    muiSearchTextFieldProps: { placeholder: 'Search withdrawals…', size: 'small' },
+    muiTablePaperProps: {
+      sx: { border: `1px solid ${BORDER_COLOR}`, borderRadius: 1, boxShadow: 'none' },
+    },
+    muiTableHeadRowProps: { sx: { bgcolor: HEADER_BG } },
+    muiTableHeadCellProps: {
+      sx: { fontWeight: 600, color: TEXT_PRIMARY, borderBottom: `1px solid ${BORDER_COLOR}` },
+    },
+    muiTableBodyCellProps: { sx: { borderBottom: `1px solid ${BORDER_COLOR}` } },
+    muiFilterTextFieldProps: { size: 'small' },
+    renderTopToolbarCustomActions: () => (
+      <Typography variant="h5" sx={{ fontWeight: 600, color: TEXT_PRIMARY, alignSelf: 'center', pl: 1 }}>
+        Withdrawals
+      </Typography>
+    ),
+    onColumnFiltersChange: () => {
+      // Clear URL params when user manually changes filters
+      setSearchParams(new URLSearchParams());
+    },
+  });
+
+  return <MaterialReactTable table={table} />;
+}
+
 // --- Main component ---
 
-export function PlantingSeasons() {
+export function PlantingSeasons({ initialSeasonId }: { initialSeasonId?: string } = {}) {
+  const navigate = useNavigate();
+  const initialSeason = initialSeasonId
+    ? nurseryPlanningSeasons.find((s) => s.id === initialSeasonId) ?? null
+    : null;
+
   const [activeTab, setActiveTab] = useState(1); // 0 = Progress, 1 = Seasons
-  const [selectedSiteId, setSelectedSiteId] = useState('ps1');
+  const [selectedSiteId, setSelectedSiteId] = useState(initialSeason?.siteId ?? 'ps1');
   const [allSeasons, setAllSeasons] = useState<Season[]>(() =>
     nurseryPlanningSeasons.map((s) => ({ ...s }))
   );
@@ -1447,7 +1805,7 @@ export function PlantingSeasons() {
   const [newSeasonName, setNewSeasonName] = useState('');
   const [newStartDate, setNewStartDate] = useState('');
   const [newEndDate, setNewEndDate] = useState('');
-  const [viewingSeason, setViewingSeason] = useState<Season | null>(null);
+  const [viewingSeason, setViewingSeason] = useState<Season | null>(initialSeason);
 
   const handleCreateSeason = () => {
     if (!newSeasonName.trim()) return;
@@ -1488,10 +1846,10 @@ export function PlantingSeasons() {
           setAllSeasons((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
           setViewingSeason(updated);
         }}
-        onNavigateToProgress={(substratumId) => {
-          setViewingSeason(null);
-          setActiveTab(0);
-          setProgressFilterSubstratumId(substratumId);
+        onNavigateToProgress={({ substratumId, speciesId, seasonId, siteId }) => {
+          const params = new URLSearchParams({ purpose: 'Planting', substratumId, seasonId, siteId });
+          if (speciesId) params.set('speciesId', speciesId);
+          navigate(`withdrawal-log?${params.toString()}`);
         }}
       />
     );
