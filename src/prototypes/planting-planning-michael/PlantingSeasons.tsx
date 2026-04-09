@@ -226,6 +226,16 @@ function formatDateRange(startDate: string, endDate: string): string {
   return `${fmt(startDate)} – ${fmt(endDate)}`;
 }
 
+const MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function formatSeasonName(startDate: string, endDate: string): string {
+  if (!startDate || !endDate) return 'Unnamed Season';
+  const s = new Date(startDate + 'T00:00');
+  const e = new Date(endDate + 'T00:00');
+  const sy = s.getFullYear(), ey = e.getFullYear();
+  if (sy === ey) return `${MONTH_ABBR[s.getMonth()]}-${MONTH_ABBR[e.getMonth()]} ${sy}`;
+  return `${MONTH_ABBR[s.getMonth()]} ${sy}-${MONTH_ABBR[e.getMonth()]} ${ey}`;
+}
+
 function isSeasonActive(startDate: string, endDate: string): boolean {
   if (!startDate || !endDate) return false;
   const today = new Date();
@@ -463,7 +473,7 @@ function WithdrawalDetailsScreen({
 
           {/* Purpose */}
           <FormControl>
-            <FormLabel sx={{ color: TEXT_SECONDARY, fontSize: '0.75rem', fontWeight: 500, mb: 0.5, '&.Mui-focused': { color: TEXT_SECONDARY } }}>
+            <FormLabel sx={{ color: TEXT_SECONDARY, fontSize: '1rem', fontWeight: 500, mb: 0.5, '&.Mui-focused': { color: TEXT_SECONDARY } }}>
               Purpose *
             </FormLabel>
             <RadioGroup value={purpose} onChange={(e) => setPurpose(e.target.value as WithdrawalPurpose)}>
@@ -489,7 +499,7 @@ function WithdrawalDetailsScreen({
               onChange={(e) => setFromNursery(e.target.value)}
               fullWidth
               size="small"
-              renderValue={(v) => v || <Typography sx={{ color: TEXT_SECONDARY, fontSize: '0.875rem' }}>Select...</Typography>}
+              renderValue={(v) => v || <Typography sx={{ color: TEXT_SECONDARY, fontSize: '1rem' }}>Select...</Typography>}
             >
               {nurseries.map((n) => (
                 <MenuItem key={n.id} value={n.name}>{n.name}</MenuItem>
@@ -528,7 +538,7 @@ function WithdrawalDetailsScreen({
                   size="small"
                   renderValue={(v) => {
                     const site = plantingSites.find((s) => s.id === v);
-                    return site ? site.name : <Typography sx={{ color: TEXT_SECONDARY, fontSize: '0.875rem' }}>Select...</Typography>;
+                    return site ? site.name : <Typography sx={{ color: TEXT_SECONDARY, fontSize: '1rem' }}>Select...</Typography>;
                   }}
                 >
                   {plantingSites.map((s) => (
@@ -551,7 +561,7 @@ function WithdrawalDetailsScreen({
                   disabled={!selectedSiteId}
                   renderValue={(v) => {
                     const season = seasonsForSite.find((s) => s.id === v);
-                    return season ? season.name : <Typography sx={{ color: TEXT_SECONDARY, fontSize: '0.875rem' }}>{selectedSiteId ? 'Select...' : 'Select a site first'}</Typography>;
+                    return season ? season.name : <Typography sx={{ color: TEXT_SECONDARY, fontSize: '1rem' }}>{selectedSiteId ? 'Select...' : 'Select a site first'}</Typography>;
                   }}
                 >
                   {seasonsForSite.map((s) => (
@@ -574,7 +584,7 @@ function WithdrawalDetailsScreen({
                   disabled={!selectedSiteId}
                   renderValue={(v) => {
                     const stratum = strataForSite.find((s) => s.id === v);
-                    return stratum ? stratum.name : <Typography sx={{ color: TEXT_SECONDARY, fontSize: '0.875rem' }}>{selectedSiteId ? 'Select...' : 'Select a site first'}</Typography>;
+                    return stratum ? stratum.name : <Typography sx={{ color: TEXT_SECONDARY, fontSize: '1rem' }}>{selectedSiteId ? 'Select...' : 'Select a site first'}</Typography>;
                   }}
                 >
                   {strataForSite.map((s) => (
@@ -597,7 +607,7 @@ function WithdrawalDetailsScreen({
                   disabled={!selectedStratumId}
                   renderValue={(v) => {
                     const sub = substrataForStrat.find((s) => s.id === v);
-                    return sub ? sub.name : <Typography sx={{ color: TEXT_SECONDARY, fontSize: '0.875rem' }}>{selectedStratumId ? 'Select...' : 'Select a stratum first'}</Typography>;
+                    return sub ? sub.name : <Typography sx={{ color: TEXT_SECONDARY, fontSize: '1rem' }}>{selectedStratumId ? 'Select...' : 'Select a stratum first'}</Typography>;
                   }}
                 >
                   {substrataForStrat.map((s) => (
@@ -675,6 +685,7 @@ function ViewPlantingSeasonView({
 }) {
   const planningCtx = usePlanningContext();
   const originalTargetsRef = useRef(stratumTargets);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
   const [viewMode, setViewMode] = useState<'species' | 'strata'>('strata');
   const [addingToStratumId, setAddingToStratumId] = useState<string | null>(null);
   const [showAllSpecies, setShowAllSpecies] = useState<Set<string>>(new Set());
@@ -702,13 +713,12 @@ function ViewPlantingSeasonView({
     );
     onStratumTargetsChange(newTargets);
 
-    // Compute new total for this species across all substrata in this season's site
-    const siteSubIds = substrata.filter((s) => s.siteId === season.siteId).map((s) => s.id);
+    // Compute new total for this species across all substrata in this season
     const oldTotal = stratumTargets
-      .filter((t) => t.speciesId === speciesId && siteSubIds.includes(t.stratumId))
+      .filter((t) => t.speciesId === speciesId)
       .reduce((sum, t) => sum + t.target, 0);
     const newTotal = newTargets
-      .filter((t) => t.speciesId === speciesId && siteSubIds.includes(t.stratumId))
+      .filter((t) => t.speciesId === speciesId)
       .reduce((sum, t) => sum + t.target, 0);
     if (newTotal !== oldTotal) {
       const sp = speciesList.find((s) => s.id === speciesId);
@@ -909,16 +919,16 @@ function ViewPlantingSeasonView({
           <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ color: TEXT_SECONDARY, fontSize: '0.75rem', fontWeight: 600, width: '36%' }}>
+                <TableCell sx={{ color: TEXT_SECONDARY, fontSize: '1rem', fontWeight: 600, width: '36%' }}>
                   Species
                 </TableCell>
-                <TableCell align="right" sx={{ color: TEXT_SECONDARY, fontSize: '0.75rem', fontWeight: 600, width: '15%' }}>
+                <TableCell align="right" sx={{ color: TEXT_SECONDARY, fontSize: '1rem', fontWeight: 600, width: '15%' }}>
                   Planted Goal
                 </TableCell>
-                <TableCell align="right" sx={{ color: TEXT_SECONDARY, fontSize: '0.75rem', fontWeight: 600, width: '20%' }}>
+                <TableCell align="right" sx={{ color: TEXT_SECONDARY, fontSize: '1rem', fontWeight: 600, width: '20%' }}>
                   Withdrawn for Planting
                 </TableCell>
-                <TableCell align="right" sx={{ color: TEXT_SECONDARY, fontSize: '0.75rem', fontWeight: 600, width: '20%' }}>
+                <TableCell align="right" sx={{ color: TEXT_SECONDARY, fontSize: '1rem', fontWeight: 600, width: '20%' }}>
                   Remaining to be Planted
                 </TableCell>
                 <TableCell sx={{ width: '9%' }} />
@@ -949,7 +959,7 @@ function ViewPlantingSeasonView({
                         }}
                         onClick={(e) => e.stopPropagation()}
                         slotProps={{
-                          input: { sx: { fontSize: '0.85rem', py: 0 } },
+                          input: { sx: { fontSize: '1rem', py: 0 } },
                           htmlInput: { min: 0, step: 1 },
                         }}
                         sx={{ width: 80 }}
@@ -1223,7 +1233,7 @@ function ViewPlantingSeasonView({
                 bgcolor: viewMode === mode ? PRIMARY_GREEN : '#fff',
                 color: viewMode === mode ? '#fff' : TEXT_SECONDARY,
                 fontWeight: viewMode === mode ? 600 : 400,
-                fontSize: '0.875rem',
+                fontSize: '1rem',
                 borderRight: mode === 'strata' ? `1px solid ${BORDER_COLOR}` : 'none',
                 '&:hover': { bgcolor: viewMode === mode ? PRIMARY_GREEN : HEADER_BG },
                 transition: 'background-color 0.15s',
@@ -1237,7 +1247,7 @@ function ViewPlantingSeasonView({
         {viewMode === 'strata' && <MaterialReactTable table={table} />}
 
         {viewMode === 'species' && (() => {
-          const headCell = { fontWeight: 600, color: TEXT_PRIMARY, borderBottom: `1px solid ${BORDER_COLOR}`, fontSize: '0.75rem' } as const;
+          const headCell = { fontWeight: 600, color: TEXT_PRIMARY, borderBottom: `1px solid ${BORDER_COLOR}`, fontSize: '1rem' } as const;
           return (
             <Box sx={{ border: `1px solid ${BORDER_COLOR}`, borderRadius: 1, overflow: 'hidden' }}>
               <Table size="small">
@@ -1298,6 +1308,60 @@ function ViewPlantingSeasonView({
             </Box>
           );
         })()}
+
+      {/* Change History */}
+      <Box sx={{ mt: 2, border: `1px solid ${BORDER_COLOR}`, borderRadius: 1, bgcolor: '#fff' }}>
+        <Box
+          onClick={() => setHistoryExpanded((v) => !v)}
+          sx={{
+            display: 'flex', alignItems: 'center', gap: 1,
+            px: 2, py: 1.25, cursor: 'pointer', bgcolor: HEADER_BG,
+            borderBottom: historyExpanded ? `1px solid ${BORDER_COLOR}` : 'none',
+            borderRadius: historyExpanded ? '4px 4px 0 0' : 1,
+          }}
+        >
+          <Typography variant="body2" sx={{ fontWeight: 600, color: TEXT_PRIMARY, flex: 1 }}>
+            Change History ({planningCtx.changeHistory.length})
+          </Typography>
+          {historyExpanded
+            ? <ExpandLessIcon sx={{ fontSize: 18, color: TEXT_SECONDARY }} />
+            : <ExpandMoreIcon sx={{ fontSize: 18, color: TEXT_SECONDARY }} />}
+        </Box>
+        <Collapse in={historyExpanded}>
+          {planningCtx.changeHistory.length === 0 ? (
+            <Box sx={{ px: 2, py: 3, textAlign: 'center' }}>
+              <Typography variant="body2" sx={{ color: TEXT_SECONDARY }}>No changes recorded yet</Typography>
+            </Box>
+          ) : (
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ bgcolor: HEADER_BG }}>
+                  <TableCell sx={{ fontWeight: 600, color: TEXT_PRIMARY, fontSize: '1rem' }}>Time</TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: TEXT_PRIMARY, fontSize: '1rem' }}>Source</TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: TEXT_PRIMARY, fontSize: '1rem' }}>Species</TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: TEXT_PRIMARY, fontSize: '1rem' }}>Season</TableCell>
+                  <TableCell sx={{ fontWeight: 600, color: TEXT_PRIMARY, fontSize: '1rem' }}>Field</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 600, color: TEXT_PRIMARY, fontSize: '1rem' }}>Old Value</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 600, color: TEXT_PRIMARY, fontSize: '1rem' }}>New Value</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {planningCtx.changeHistory.map((record) => (
+                  <TableRow key={record.id} sx={{ '& td': { borderBottom: `1px solid ${BORDER_COLOR}` } }}>
+                    <TableCell><Typography variant="body2" sx={{ color: TEXT_SECONDARY, fontSize: '1rem' }}>{record.timestamp}</Typography></TableCell>
+                    <TableCell><Typography variant="body2" sx={{ fontSize: '1rem', color: record.source === 'Planting Seasons' ? COLOR_PARTIAL : PRIMARY_GREEN }}>{record.source}</Typography></TableCell>
+                    <TableCell><Typography variant="body2" sx={{ fontSize: '1rem', fontStyle: 'italic', color: TEXT_PRIMARY }}>{record.speciesName}</Typography></TableCell>
+                    <TableCell><Typography variant="body2" sx={{ fontSize: '1rem', color: TEXT_PRIMARY }}>{record.seasonName}</Typography></TableCell>
+                    <TableCell><Typography variant="body2" sx={{ fontSize: '1rem', color: TEXT_SECONDARY }}>{record.field}</Typography></TableCell>
+                    <TableCell align="right"><Typography variant="body2" sx={{ fontSize: '1rem', color: TEXT_SECONDARY }}>{record.oldValue.toLocaleString()}</Typography></TableCell>
+                    <TableCell align="right"><Typography variant="body2" sx={{ fontSize: '1rem', fontWeight: 600, color: TEXT_PRIMARY }}>{record.newValue.toLocaleString()}</Typography></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </Collapse>
+      </Box>
     </Box>
   );
 }
@@ -1453,7 +1517,7 @@ function SeasonCard({ season, onViewSeason, onUpdate, onDelete, archived = false
                 color: '#5C832B',
                 border: '1px solid #5C832B',
                 fontWeight: 500,
-                fontSize: '0.875rem',
+                fontSize: '1rem',
                 px: 0.5,
               }}
             />
@@ -1467,7 +1531,7 @@ function SeasonCard({ season, onViewSeason, onUpdate, onDelete, archived = false
                 color: TEXT_SECONDARY,
                 border: `1px solid ${BORDER_COLOR}`,
                 fontWeight: 500,
-                fontSize: '0.875rem',
+                fontSize: '1rem',
                 px: 0.5,
               }}
             />
@@ -1528,7 +1592,7 @@ function SeasonCard({ season, onViewSeason, onUpdate, onDelete, archived = false
                     sx={{
                       bgcolor: '#F2F0EE',
                       color: '#7F785C',
-                      fontSize: '0.875rem',
+                      fontSize: '1rem',
                       fontWeight: 500,
                       px: 0.5,
                       height: 28,
@@ -1554,7 +1618,7 @@ function SeasonCard({ season, onViewSeason, onUpdate, onDelete, archived = false
                     sx={{
                       bgcolor: '#F2F0EE',
                       color: '#7F785C',
-                      fontSize: '0.875rem',
+                      fontSize: '1rem',
                       fontWeight: 500,
                       px: 0.5,
                       height: 28,
@@ -1914,28 +1978,32 @@ function CalendarView({
       </Tabs>
 
       <Box sx={{ overflowX: 'auto', p: 2 }}>
-        <Box sx={{ minWidth: 800 }}>
+        <Box sx={{ minWidth: 640 }}>
           {/* Fixed 12-month header */}
-          <Box sx={{ display: 'flex', ml: '280px', borderBottom: `1px solid ${BORDER_COLOR}`, mb: 2 }}>
-            {MONTHS_SHORT.map((label, i) => {
-              const isCurrentMonth = TODAY.getFullYear() === selectedYear && TODAY.getMonth() === i;
-              return (
-                <Box
-                  key={i}
-                  sx={{
-                    flex: 1,
-                    textAlign: 'center',
-                    py: 0.5,
-                    borderRight: i < 11 ? `1px solid ${BORDER_COLOR}` : 'none',
-                    bgcolor: isCurrentMonth ? '#F0F7F3' : 'transparent',
-                  }}
-                >
-                  <Typography variant="caption" sx={{ color: isCurrentMonth ? PRIMARY_GREEN : TEXT_SECONDARY, fontSize: '0.7rem', fontWeight: isCurrentMonth ? 700 : 400 }}>
-                    {label}
-                  </Typography>
-                </Box>
-              );
-            })}
+          <Box sx={{ display: 'flex', mb: 2 }}>
+            <Box sx={{ width: 240, flexShrink: 0 }} />
+            <Box sx={{ flex: 1, display: 'flex', borderBottom: `1px solid ${BORDER_COLOR}` }}>
+              {MONTHS_SHORT.map((label, i) => {
+                const isCurrentMonth = TODAY.getFullYear() === selectedYear && TODAY.getMonth() === i;
+                return (
+                  <Box
+                    key={i}
+                    sx={{
+                      flex: 1,
+                      textAlign: 'center',
+                      py: 0.5,
+                      borderRight: i < 11 ? `1px solid ${BORDER_COLOR}` : 'none',
+                      bgcolor: isCurrentMonth ? '#F0F7F3' : 'transparent',
+                    }}
+                  >
+                    <Typography variant="caption" sx={{ color: isCurrentMonth ? PRIMARY_GREEN : TEXT_SECONDARY, fontSize: '1rem', fontWeight: isCurrentMonth ? 700 : 400 }}>
+                      {label}
+                    </Typography>
+                  </Box>
+                );
+              })}
+            </Box>
+            <Box sx={{ width: 280, flexShrink: 0 }} />
           </Box>
 
           {/* Empty state */}
@@ -1969,41 +2037,25 @@ function CalendarView({
                 onMouseLeave={() => setHoveredId(null)}
                 sx={{
                   display: 'flex',
-                  mb: 3,
+                  mb: 4,
                   opacity: isArchived ? 0.72 : 1,
-                  pb: 2,
+                  pb: 3,
                   borderBottom: `1px solid ${BORDER_COLOR}`,
                   '&:last-child': { borderBottom: 'none', mb: 0, pb: 0 },
                 }}
               >
-                {/* Left label — always shows name, dates, Manage button */}
-                <Box sx={{ width: 280, flexShrink: 0, pr: 2.5, display: 'flex', flexDirection: 'column', gap: 1, pt: 0.5 }}>
+                {/* Left label — name, dates, status */}
+                <Box sx={{ width: 240, flexShrink: 0, pr: 3, display: 'flex', flexDirection: 'column', gap: 0.5, pt: 0.5 }}>
                   <CalendarSeasonLabel
                     season={season}
                     onUpdate={onUpdateSeason}
                     isArchived={isArchived ?? false}
                     isActive={isActive}
                   />
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'nowrap' }}>
-                    <Box sx={{ flexShrink: 0 }}>
-                      <Button
-                        label="Manage Planting Season"
-                        onClick={() => onViewSeason(season)}
-                        priority="secondary"
-                      />
-                    </Box>
-                    <IconButton
-                      size="small"
-                      onClick={(e) => { e.stopPropagation(); setDeleteTarget(season); }}
-                      sx={{ color: TEXT_SECONDARY, '&:hover': { color: '#757575' }, flexShrink: 0 }}
-                    >
-                      <DeleteIcon sx={{ fontSize: 18 }} />
-                    </IconButton>
-                  </Box>
                 </Box>
 
                 {/* Timeline + metrics */}
-                <Box sx={{ flex: 1, position: 'relative' }}>
+                <Box sx={{ flex: 1, position: 'relative', mr: 1 }}>
                   {/* Bar */}
                   <Box sx={{ position: 'relative', height: 40, mb: 1.5 }}>
                     <Box
@@ -2025,32 +2077,13 @@ function CalendarView({
                         minWidth: 60,
                       }}
                     >
-                      {isActive && (
-                        <Chip label="Active" size="small" sx={{ bgcolor: '#EBF2DB', color: '#5C832B', border: '1px solid #5C832B', height: 20, fontSize: '0.65rem', fontWeight: 600, flexShrink: 0 }} />
-                      )}
-                      {isArchived && (
-                        <Chip label="Archived" size="small" sx={{ bgcolor: '#F5F5F5', color: TEXT_SECONDARY, border: `1px solid ${BORDER_COLOR}`, height: 20, fontSize: '0.65rem', flexShrink: 0 }} />
-                      )}
-                      <Typography variant="caption" sx={{ color: TEXT_SECONDARY, fontSize: '0.7rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {formatDateRange(season.startDate, season.endDate)}
-                      </Typography>
                     </Box>
                   </Box>
 
                   {/* Metrics below bar */}
-                  <Box sx={{ position: 'relative' }}>
-                    <Box
-                      sx={{
-                        position: 'absolute',
-                        left: `${left}%`,
-                        width: `${Math.min(width, 100 - left)}%`,
-                        display: 'flex',
-                        gap: 2.5,
-                        alignItems: 'flex-start',
-                      }}
-                    >
+                  <Box sx={{ display: 'flex', gap: 2.5, alignItems: 'flex-start', mt: 1 }}>
                       <Box sx={{ minWidth: 110 }}>
-                        <Typography sx={{ fontSize: '0.68rem', color: TEXT_SECONDARY, mb: '3px' }}>Progress</Typography>
+                        <Typography sx={{ fontSize: '1rem', color: TEXT_SECONDARY, mb: '3px', whiteSpace: 'nowrap' }}>Progress</Typography>
                         <LinearProgress
                           variant="determinate"
                           value={progress}
@@ -2061,16 +2094,30 @@ function CalendarView({
                         />
                       </Box>
                       <Box>
-                        <Typography sx={{ fontSize: '0.68rem', color: TEXT_SECONDARY }}>Planted Goal</Typography>
-                        <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: TEXT_PRIMARY }}>{totalGoal.toLocaleString()}</Typography>
+                        <Typography sx={{ fontSize: '1rem', color: TEXT_SECONDARY, whiteSpace: 'nowrap' }}>Planted Goal</Typography>
+                        <Typography sx={{ fontSize: '1rem', fontWeight: 600, color: TEXT_PRIMARY }}>{totalGoal.toLocaleString()}</Typography>
                       </Box>
                       <Box>
-                        <Typography sx={{ fontSize: '0.68rem', color: TEXT_SECONDARY }}>Total Planted</Typography>
-                        <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: TEXT_PRIMARY }}>{totalPlanted.toLocaleString()}</Typography>
+                        <Typography sx={{ fontSize: '1rem', color: TEXT_SECONDARY, whiteSpace: 'nowrap' }}>Total Planted</Typography>
+                        <Typography sx={{ fontSize: '1rem', fontWeight: 600, color: TEXT_PRIMARY }}>{totalPlanted.toLocaleString()}</Typography>
                       </Box>
-                    </Box>
-                    <Box sx={{ height: 48 }} />
                   </Box>
+                </Box>
+
+                {/* Right actions — fixed width matching header spacer */}
+                <Box sx={{ width: 280, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 1, pl: 2 }}>
+                  <Button
+                    label="Manage Planting Season"
+                    onClick={() => onViewSeason(season)}
+                    priority="secondary"
+                  />
+                  <IconButton
+                    size="small"
+                    onClick={(e) => { e.stopPropagation(); setDeleteTarget(season); }}
+                    sx={{ color: TEXT_SECONDARY, '&:hover': { color: '#757575' } }}
+                  >
+                    <DeleteIcon sx={{ fontSize: 20 }} />
+                  </IconButton>
                 </Box>
               </Box>
             );
@@ -2105,24 +2152,24 @@ function CalendarView({
             <>
               {activeStrata.length > 0 && (
                 <Box sx={{ mb: activeSubs.length > 0 ? 1.5 : 0 }}>
-                  <Typography variant="caption" sx={{ color: TEXT_SECONDARY, fontWeight: 600, display: 'block', mb: 0.75, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.65rem' }}>
+                  <Typography variant="caption" sx={{ color: TEXT_SECONDARY, fontWeight: 600, display: 'block', mb: 0.75, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '1rem' }}>
                     Strata
                   </Typography>
                   <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
                     {activeStrata.map((st) => (
-                      <Chip key={st.id} label={st.name} size="small" sx={{ bgcolor: '#EBF2DB', color: '#5C832B', fontSize: '0.75rem', height: 24 }} />
+                      <Chip key={st.id} label={st.name} size="small" sx={{ bgcolor: '#EBF2DB', color: '#5C832B', fontSize: '0.875rem', height: 24 }} />
                     ))}
                   </Box>
                 </Box>
               )}
               {activeSubs.length > 0 && (
                 <Box>
-                  <Typography variant="caption" sx={{ color: TEXT_SECONDARY, fontWeight: 600, display: 'block', mb: 0.75, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.65rem' }}>
+                  <Typography variant="caption" sx={{ color: TEXT_SECONDARY, fontWeight: 600, display: 'block', mb: 0.75, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '1rem' }}>
                     Substrata
                   </Typography>
                   <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
                     {activeSubs.map((sub) => (
-                      <Chip key={sub.id} label={sub.name} size="small" sx={{ bgcolor: '#F2F0EE', color: '#7F785C', fontSize: '0.75rem', height: 24 }} />
+                      <Chip key={sub.id} label={sub.name} size="small" sx={{ bgcolor: '#F2F0EE', color: '#7F785C', fontSize: '0.875rem', height: 24 }} />
                     ))}
                   </Box>
                 </Box>
@@ -2177,17 +2224,9 @@ function CalendarSeasonLabel({
   isArchived: boolean;
   isActive: boolean;
 }) {
-  const [editingName, setEditingName] = useState(false);
   const [editingDates, setEditingDates] = useState(false);
-  const [draftName, setDraftName] = useState(season.name);
   const [draftStart, setDraftStart] = useState(season.startDate);
   const [draftEnd, setDraftEnd] = useState(season.endDate);
-
-  const commitName = () => {
-    if (draftName.trim()) onUpdate({ ...season, name: draftName.trim() });
-    else setDraftName(season.name);
-    setEditingName(false);
-  };
 
   const commitDates = () => {
     onUpdate({ ...season, startDate: draftStart, endDate: draftEnd });
@@ -2196,31 +2235,14 @@ function CalendarSeasonLabel({
 
   return (
     <Box>
-      {editingName ? (
-        <TextField
-          value={draftName}
-          onChange={(e) => setDraftName(e.target.value)}
-          onBlur={commitName}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') commitName();
-            if (e.key === 'Escape') { setDraftName(season.name); setEditingName(false); }
-          }}
-          autoFocus
-          size="small"
-          sx={{ width: 160 }}
-        />
-      ) : (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: isArchived ? TEXT_SECONDARY : TEXT_PRIMARY }}>
-            {season.name}
-          </Typography>
-          <IconButton size="small" onClick={() => { setDraftName(season.name); setEditingName(true); }} sx={{ color: TEXT_SECONDARY, p: '2px' }}>
-            <EditIcon sx={{ fontSize: 13 }} />
-          </IconButton>
-        </Box>
-      )}
+      {/* Season name — auto-formatted from dates */}
+      <Typography sx={{ fontSize: '1.125rem', fontWeight: 600, color: isArchived ? TEXT_SECONDARY : TEXT_PRIMARY, whiteSpace: 'nowrap' }}>
+        {formatSeasonName(season.startDate, season.endDate)}
+      </Typography>
+
+      {/* Dates */}
       {editingDates ? (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 0.5 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 1 }}>
           <TextField type="date" value={draftStart} onChange={(e) => setDraftStart(e.target.value)} size="small" slotProps={{ inputLabel: { shrink: true } }} sx={{ width: 155 }} />
           <TextField
             type="date"
@@ -2237,15 +2259,34 @@ function CalendarSeasonLabel({
           />
         </Box>
       ) : (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          <Typography sx={{ fontSize: '0.7rem', color: TEXT_SECONDARY }}>
-            {isActive ? 'Active' : isArchived ? 'Archived' : 'Upcoming'}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+          <Typography sx={{ fontSize: '1rem', color: TEXT_SECONDARY, whiteSpace: 'nowrap' }}>
+            {formatDateRange(season.startDate, season.endDate)}
           </Typography>
           <IconButton size="small" onClick={() => { setDraftStart(season.startDate); setDraftEnd(season.endDate); setEditingDates(true); }} sx={{ color: TEXT_SECONDARY, p: '1px' }}>
-            <EditIcon sx={{ fontSize: 11 }} />
+            <EditIcon sx={{ fontSize: 14 }} />
           </IconButton>
         </Box>
       )}
+
+      {/* Status chip */}
+      <Box sx={{ mt: 1 }}>
+        <Chip
+          label={isActive ? 'Active' : isArchived ? 'Archived' : 'Upcoming'}
+          size="small"
+          sx={{
+            height: 24,
+            fontSize: '0.875rem',
+            fontWeight: 600,
+            ...(isActive
+              ? { bgcolor: '#EBF2DB', color: '#5C832B', border: '1px solid #5C832B' }
+              : isArchived
+              ? { bgcolor: '#F5F5F5', color: TEXT_SECONDARY, border: `1px solid ${BORDER_COLOR}` }
+              : { bgcolor: '#E8F0FE', color: '#1A5276', border: '1px solid #AED6F1' }),
+          }}
+        />
+      </Box>
+
     </Box>
   );
 }
@@ -2259,7 +2300,6 @@ export function PlantingSeasons({ initialSeasonId }: { initialSeasonId?: string 
     : null;
 
   const { plantingNotification, dismissPlantingNotification } = usePlanningContext();
-  const [activeTab, setActiveTab] = useState(1); // 0 = Progress, 1 = Seasons
   const [selectedSiteId, setSelectedSiteId] = useState(initialSeason?.siteId ?? 'all');
   const [allSeasons, setAllSeasons] = useState<Season[]>(() =>
     nurseryPlanningSeasons.map((s) => ({ ...s }))
@@ -2269,8 +2309,7 @@ export function PlantingSeasons({ initialSeasonId }: { initialSeasonId?: string 
   const [seasonStratumTargets, setSeasonStratumTargets] = useState<Record<string, StratumTarget[]>>(
     () => Object.fromEntries(nurseryPlanningSeasons.map((s) => [s.id, makeInitialStratumTargets()]))
   );
-  const [progressFilterSubstratumId, setProgressFilterSubstratumId] = useState<string | undefined>(undefined);
-  const [showPastSeasons, setShowPastSeasons] = useState(false);
+const [showPastSeasons, setShowPastSeasons] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newSeasonName, setNewSeasonName] = useState('');
   const [newStartDate, setNewStartDate] = useState('');
@@ -2362,35 +2401,13 @@ export function PlantingSeasons({ initialSeasonId }: { initialSeasonId?: string 
         </Alert>
       )}
 
-      {/* Tabs */}
-      <Tabs
-        value={activeTab}
-        onChange={(_, v) => setActiveTab(v)}
-        sx={{ borderBottom: `1px solid ${BORDER_COLOR}`, mb: 3 }}
-        TabIndicatorProps={{ sx: { bgcolor: PRIMARY_GREEN } }}
-      >
-        <Tab label="Planting Progress" sx={{ textTransform: 'none' }} />
-        <Tab label={`Planting Seasons${seasons.length > 0 ? ` (${seasons.length})` : ''}`} sx={{ textTransform: 'none' }} />
-      </Tabs>
-
-      {/* Planting Seasons tab */}
-      {activeTab === 1 && (
-        <CalendarView
-          seasons={seasons}
-          seasonStratumTargets={seasonStratumTargets}
-          onViewSeason={(season) => setViewingSeason(season)}
-          onUpdateSeason={(updated) => setAllSeasons((prev) => prev.map((s) => (s.id === updated.id ? updated : s)))}
-          onDeleteSeason={(id) => setAllSeasons((prev) => prev.filter((s) => s.id !== id))}
-        />
-      )}
-
-      {/* Planting Progress tab */}
-      {activeTab === 0 && (
-        <PlantingProgressView
-          withdrawals={mockWithdrawals}
-          defaultSubstratumId={progressFilterSubstratumId}
-        />
-      )}
+      <CalendarView
+        seasons={seasons}
+        seasonStratumTargets={seasonStratumTargets}
+        onViewSeason={(season) => setViewingSeason(season)}
+        onUpdateSeason={(updated) => setAllSeasons((prev) => prev.map((s) => (s.id === updated.id ? updated : s)))}
+        onDeleteSeason={(id) => setAllSeasons((prev) => prev.filter((s) => s.id !== id))}
+      />
 
       {/* Create Season Dialog */}
       <DialogBox
