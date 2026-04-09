@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate, useParams } from 'react-router';
+import { Box, Typography } from '@mui/material';
 import { AppShell } from '@/components/navigation';
 import type { NavSection } from '@/components/navigation';
 import { PlanningHome } from './PlanningHome';
@@ -64,7 +65,7 @@ const sections: NavSection[] = [
         icon: icon(SeedlingsIcon),
         children: [
           { label: 'Inventory', path: `${BASE}/seedlings-inventory` },
-          { label: 'Nursery Planning', path: `${BASE}/nursery-planning` },
+          { label: 'Inventory Planning', path: `${BASE}/nursery-planning` },
           { label: 'Withdrawals', path: `${BASE}/withdrawal-log` },
         ],
       },
