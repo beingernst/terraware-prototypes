@@ -1731,7 +1731,8 @@ function CalendarView({
             const targets = seasonStratumTargets[season.id] ?? [];
             const totalGoal = targets.reduce((s, t) => s + t.target, 0);
             const totalPlanted = targets.reduce((s, t) => s + t.withdrawn, 0);
-            const progress = totalGoal > 0 ? Math.min((totalPlanted / totalGoal) * 100, 100) : 0;
+            const isUpcoming = !isActive && !isArchived;
+            const progress = (!isUpcoming && totalGoal > 0) ? Math.min((totalPlanted / totalGoal) * 100, 100) : 0;
             const progressBarColor = progress >= 80 ? '#4CAF50' : progress >= 41 ? '#FF9800' : '#F44336';
 
             const barBg = isArchived ? '#E8E6E1' : isActive ? '#DEE5D9' : '#EBF2DB';
