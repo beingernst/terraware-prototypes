@@ -5,15 +5,24 @@
  * Planting Seasons tab: create/list seasons with targets per stratum/species.
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router';
 import {
+  Alert,
   Autocomplete,
   Box,
   Chip,
   Collapse,
+  FormControl,
+  FormControlLabel,
+  FormLabel,
   IconButton,
   LinearProgress,
+  Menu,
   MenuItem,
+  Popover,
+  Radio,
+  RadioGroup,
   Select,
   Tab,
   Table,
@@ -27,13 +36,19 @@ import {
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
+  CalendarToday as CalendarTodayIcon,
   Delete as DeleteIcon,
   Edit as EditIcon,
   ExpandLess as ExpandLessIcon,
   ExpandMore as ExpandMoreIcon,
+  InfoOutlined as InfoOutlinedIcon,
+  MoreVert as MoreVertIcon,
+  OpenInNew as OpenInNewIcon,
 } from '@mui/icons-material';
 import { Button, DialogBox } from '@terraware/web-components';
 import { MaterialReactTable, useMaterialReactTable, type MRT_ColumnDef } from 'material-react-table';
+import { plantingSites, nurseryPlanningSeasons, nurseries } from './nurseryPlanningData';
+import { usePlanningContext } from './PlanningContext';
 
 // Colors
 const HEADER_BG = '#F5F5F0';
@@ -65,15 +80,16 @@ function getRemainingPlantedColor(remaining: number, target: number): string {
 
 // --- Mock data ---
 
-const plantingSites = [
-  { id: 'site1', name: 'Montanha do Sul' },
-  { id: 'site2', name: "Pu'u Wa'awa'a" },
-  { id: 'site3', name: 'Mauna Meadows' },
+const strata = [
+  { id: 'pst1', name: 'Black-White', siteId: 'ps1' },
+  { id: 'pst2', name: 'Stratum 2',   siteId: 'ps1' },
 ];
 
-const strata = [
-  { id: 'st1', name: 'Black-White-East' },
-  { id: 'st2', name: 'Black-White-West' },
+const substrata = [
+  { id: 'st1', name: 'Black-White-East', stratumId: 'pst1', siteId: 'ps1' },
+  { id: 'st2', name: 'Black-White-West', stratumId: 'pst1', siteId: 'ps1' },
+  { id: 'st3', name: 'Substrata A',      stratumId: 'pst2', siteId: 'ps1' },
+  { id: 'st4', name: 'Substrata B',      stratumId: 'pst2', siteId: 'ps1' },
 ];
 
 const speciesList = [
@@ -111,6 +127,7 @@ interface Season {
   totalTargets?: number;
   totalPlanted?: number;
   strataIds?: string[];
+  siteId?: string;
 }
 
 interface StratumTarget {
@@ -121,15 +138,80 @@ interface StratumTarget {
   withdrawn: number;
 }
 
-interface StratumRow {
-  stratumId: string;
+interface TableRow {
+  id: string;
   stratumName: string;
+  substratumId: string;
+  substratumName: string;
   target: number;
   withdrawn: number;
   remaining: number;
+  subRows?: TableRow[];
 }
 
+interface PlantingWithdrawal {
+  id: string;
+  date: string;
+  substratumId: string;
+  speciesId: string;
+  quantity: number;
+  nurseryName: string;
+  plantingSiteName: string;
+  plantingSeasonId: string;
+  purpose: string;
+}
+
+const mockWithdrawals: PlantingWithdrawal[] = [
+  { id: 'w1',  date: '2026-03-02', substratumId: 'st1', speciesId: 'sp1',  quantity: 120, nurseryName: 'Waimea',  plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w2',  date: '2026-03-05', substratumId: 'st1', speciesId: 'sp2',  quantity: 85,  nurseryName: 'Kona',    plantingSiteName: 'Mauna Meadows',    plantingSeasonId: 'ps2-s2', purpose: 'Planting' },
+  { id: 'w3',  date: '2026-03-10', substratumId: 'st2', speciesId: 'sp3',  quantity: 200, nurseryName: 'Hilo',    plantingSiteName: 'Ocean View Lands', plantingSeasonId: 'ps3-s2', purpose: 'Planting' },
+  { id: 'w4',  date: '2026-03-12', substratumId: 'st1', speciesId: 'sp4',  quantity: 60,  nurseryName: 'Waimea',  plantingSiteName: 'Lapakahi',         plantingSeasonId: 'ps4-s1', purpose: 'Planting' },
+  { id: 'w5',  date: '2026-03-15', substratumId: 'st3', speciesId: 'sp5',  quantity: 150, nurseryName: 'Kona',    plantingSiteName: 'Kahua Ranch',      plantingSeasonId: 'ps5-s1', purpose: 'Planting' },
+  { id: 'w6',  date: '2026-03-18', substratumId: 'st2', speciesId: 'sp6',  quantity: 90,  nurseryName: 'Hilo',    plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w7',  date: '2026-03-20', substratumId: 'st1', speciesId: 'sp7',  quantity: 110, nurseryName: 'Waimea',  plantingSiteName: 'Mauna Meadows',    plantingSeasonId: 'ps2-s2', purpose: 'Planting' },
+  { id: 'w8',  date: '2026-03-22', substratumId: 'st4', speciesId: 'sp8',  quantity: 75,  nurseryName: 'Kona',    plantingSiteName: 'Ocean View Lands', plantingSeasonId: 'ps3-s2', purpose: 'Planting' },
+  { id: 'w9',  date: '2026-03-25', substratumId: 'st3', speciesId: 'sp2',  quantity: 130, nurseryName: 'Hilo',    plantingSiteName: 'Lapakahi',         plantingSeasonId: 'ps4-s1', purpose: 'Planting' },
+  { id: 'w10', date: '2026-03-28', substratumId: 'st1', speciesId: 'sp9',  quantity: 95,  nurseryName: 'Waimea',  plantingSiteName: 'Kahua Ranch',      plantingSeasonId: 'ps5-s1', purpose: 'Planting' },
+  { id: 'w11', date: '2026-04-01', substratumId: 'st2', speciesId: 'sp10', quantity: 180, nurseryName: 'Kona',    plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w12', date: '2026-04-03', substratumId: 'st4', speciesId: 'sp1',  quantity: 55,  nurseryName: 'Hilo',    plantingSiteName: 'Mauna Meadows',    plantingSeasonId: 'ps2-s2', purpose: 'Planting' },
+  { id: 'w13', date: '2026-04-05', substratumId: 'st1', speciesId: 'sp3',  quantity: 140, nurseryName: 'Waimea',  plantingSiteName: 'Ocean View Lands', plantingSeasonId: 'ps3-s2', purpose: 'Planting' },
+  { id: 'w14', date: '2026-04-08', substratumId: 'st3', speciesId: 'sp11', quantity: 70,  nurseryName: 'Kona',    plantingSiteName: 'Lapakahi',         plantingSeasonId: 'ps4-s1', purpose: 'Planting' },
+  { id: 'w15', date: '2026-04-10', substratumId: 'st2', speciesId: 'sp12', quantity: 100, nurseryName: 'Hilo',    plantingSiteName: 'Kahua Ranch',      plantingSeasonId: 'ps5-s1', purpose: 'Planting' },
+  { id: 'w16', date: '2026-04-12', substratumId: 'st1', speciesId: 'sp5',  quantity: 160, nurseryName: 'Waimea',  plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w17', date: '2026-04-15', substratumId: 'st4', speciesId: 'sp13', quantity: 45,  nurseryName: 'Kona',    plantingSiteName: 'Mauna Meadows',    plantingSeasonId: 'ps2-s2', purpose: 'Planting' },
+  { id: 'w18', date: '2026-04-18', substratumId: 'st3', speciesId: 'sp4',  quantity: 115, nurseryName: 'Hilo',    plantingSiteName: 'Ocean View Lands', plantingSeasonId: 'ps3-s2', purpose: 'Planting' },
+  { id: 'w19', date: '2026-04-20', substratumId: 'st2', speciesId: 'sp14', quantity: 80,  nurseryName: 'Waimea',  plantingSiteName: 'Lapakahi',         plantingSeasonId: 'ps4-s1', purpose: 'Planting' },
+  { id: 'w20', date: '2026-04-22', substratumId: 'st1', speciesId: 'sp6',  quantity: 135, nurseryName: 'Kona',    plantingSiteName: 'Kahua Ranch',      plantingSeasonId: 'ps5-s1', purpose: 'Planting' },
+  { id: 'w21', date: '2026-04-25', substratumId: 'st2', speciesId: 'sp7',  quantity: 65,  nurseryName: 'Hilo',    plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s3', purpose: 'Planting' },
+  { id: 'w22', date: '2026-04-28', substratumId: 'st3', speciesId: 'sp15', quantity: 90,  nurseryName: 'Waimea',  plantingSiteName: 'Mauna Meadows',    plantingSeasonId: 'ps2-s3', purpose: 'Planting' },
+  { id: 'w23', date: '2026-05-01', substratumId: 'st1', speciesId: 'sp8',  quantity: 105, nurseryName: 'Kona',    plantingSiteName: 'Ocean View Lands', plantingSeasonId: 'ps3-s2', purpose: 'Planting' },
+  { id: 'w24', date: '2026-05-04', substratumId: 'st2', speciesId: 'sp9',  quantity: 175, nurseryName: 'Hilo',    plantingSiteName: 'Lapakahi',         plantingSeasonId: 'ps4-s2', purpose: 'Planting' },
+  { id: 'w25', date: '2026-05-07', substratumId: 'st4', speciesId: 'sp16', quantity: 50,  nurseryName: 'Waimea',  plantingSiteName: 'Kahua Ranch',      plantingSeasonId: 'ps5-s1', purpose: 'Planting' },
+  { id: 'w26', date: '2026-03-04', substratumId: 'st1', speciesId: 'sp2',  quantity: 85,  nurseryName: 'Waimea',  plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w27', date: '2026-03-08', substratumId: 'st1', speciesId: 'sp3',  quantity: 110, nurseryName: 'Kona',    plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w28', date: '2026-03-11', substratumId: 'st1', speciesId: 'sp4',  quantity: 70,  nurseryName: 'Hilo',    plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w29', date: '2026-03-14', substratumId: 'st2', speciesId: 'sp7',  quantity: 110, nurseryName: 'Waimea',  plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w30', date: '2026-03-17', substratumId: 'st2', speciesId: 'sp8',  quantity: 75,  nurseryName: 'Kona',    plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w31', date: '2026-03-19', substratumId: 'st2', speciesId: 'sp9',  quantity: 95,  nurseryName: 'Hilo',    plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w32', date: '2026-03-23', substratumId: 'st3', speciesId: 'sp11', quantity: 70,  nurseryName: 'Waimea',  plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w33', date: '2026-03-26', substratumId: 'st3', speciesId: 'sp12', quantity: 100, nurseryName: 'Kona',    plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w34', date: '2026-03-30', substratumId: 'st3', speciesId: 'sp13', quantity: 45,  nurseryName: 'Hilo',    plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w35', date: '2026-04-02', substratumId: 'st3', speciesId: 'sp14', quantity: 80,  nurseryName: 'Waimea',  plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w36', date: '2026-04-06', substratumId: 'st3', speciesId: 'sp15', quantity: 90,  nurseryName: 'Kona',    plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w37', date: '2026-04-09', substratumId: 'st4', speciesId: 'sp16', quantity: 50,  nurseryName: 'Hilo',    plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w38', date: '2026-04-13', substratumId: 'st4', speciesId: 'sp17', quantity: 65,  nurseryName: 'Waimea',  plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w39', date: '2026-04-16', substratumId: 'st4', speciesId: 'sp18', quantity: 55,  nurseryName: 'Kona',    plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w40', date: '2026-04-19', substratumId: 'st4', speciesId: 'sp19', quantity: 80,  nurseryName: 'Hilo',    plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+  { id: 'w41', date: '2026-04-23', substratumId: 'st4', speciesId: 'sp20', quantity: 75,  nurseryName: 'Waimea',  plantingSiteName: "Pu'u Wa'awa'a",   plantingSeasonId: 'ps1-s2', purpose: 'Planting' },
+];
+
 // --- Helpers ---
+
+function formatDate(d: string): string {
+  return d
+    ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : '—';
+}
 
 function formatDateRange(startDate: string, endDate: string): string {
   if (!startDate && !endDate) return '';
@@ -150,15 +232,426 @@ function isSeasonActive(startDate: string, endDate: string): boolean {
   return today >= new Date(startDate + 'T00:00:00') && today <= new Date(endDate + 'T23:59:59');
 }
 
-// Black-White-East gets all 20 species; Black-White-West starts empty
+// 5 species per substratum, withdrawn values aligned to mockWithdrawals for ps1-s2
 function makeInitialStratumTargets(): StratumTarget[] {
-  return speciesList.map((sp) => ({
-    speciesId: sp.id,
-    stratumId: 'st1',
-    target: Math.floor(Math.random() * 150 + 50),
-    readyToPlant: Math.floor(Math.random() * 100 + 20),
-    withdrawn: Math.floor(Math.random() * 50),
-  }));
+  return [
+    // st1 — Black-White-East
+    { speciesId: 'sp1',  stratumId: 'st1', target: 200, readyToPlant: 180, withdrawn: 120 },
+    { speciesId: 'sp2',  stratumId: 'st1', target: 150, readyToPlant: 130, withdrawn: 85  },
+    { speciesId: 'sp3',  stratumId: 'st1', target: 180, readyToPlant: 160, withdrawn: 110 },
+    { speciesId: 'sp4',  stratumId: 'st1', target: 120, readyToPlant: 100, withdrawn: 70  },
+    { speciesId: 'sp5',  stratumId: 'st1', target: 250, readyToPlant: 220, withdrawn: 160 },
+    // st2 — Black-White-West
+    { speciesId: 'sp6',  stratumId: 'st2', target: 160, readyToPlant: 140, withdrawn: 90  },
+    { speciesId: 'sp7',  stratumId: 'st2', target: 200, readyToPlant: 175, withdrawn: 110 },
+    { speciesId: 'sp8',  stratumId: 'st2', target: 140, readyToPlant: 120, withdrawn: 75  },
+    { speciesId: 'sp9',  stratumId: 'st2', target: 175, readyToPlant: 150, withdrawn: 95  },
+    { speciesId: 'sp10', stratumId: 'st2', target: 220, readyToPlant: 200, withdrawn: 180 },
+    // st3 — Substrata A
+    { speciesId: 'sp11', stratumId: 'st3', target: 130, readyToPlant: 110, withdrawn: 70  },
+    { speciesId: 'sp12', stratumId: 'st3', target: 160, readyToPlant: 140, withdrawn: 100 },
+    { speciesId: 'sp13', stratumId: 'st3', target: 100, readyToPlant: 80,  withdrawn: 45  },
+    { speciesId: 'sp14', stratumId: 'st3', target: 140, readyToPlant: 120, withdrawn: 80  },
+    { speciesId: 'sp15', stratumId: 'st3', target: 150, readyToPlant: 130, withdrawn: 90  },
+    // st4 — Substrata B
+    { speciesId: 'sp16', stratumId: 'st4', target: 110, readyToPlant: 90,  withdrawn: 50  },
+    { speciesId: 'sp17', stratumId: 'st4', target: 130, readyToPlant: 110, withdrawn: 65  },
+    { speciesId: 'sp18', stratumId: 'st4', target: 120, readyToPlant: 100, withdrawn: 55  },
+    { speciesId: 'sp19', stratumId: 'st4', target: 145, readyToPlant: 125, withdrawn: 80  },
+    { speciesId: 'sp20', stratumId: 'st4', target: 160, readyToPlant: 140, withdrawn: 75  },
+  ];
+}
+
+// --- Planting Progress tab ---
+
+function PlantingProgressView({
+  withdrawals,
+  defaultSubstratumId,
+}: {
+  withdrawals: PlantingWithdrawal[];
+  defaultSubstratumId?: string;
+}) {
+  const [filterSubstratumId, setFilterSubstratumId] = useState<string>(defaultSubstratumId ?? 'all');
+
+  const filtered = [...withdrawals]
+    .filter((w) => filterSubstratumId === 'all' || w.substratumId === filterSubstratumId)
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  return (
+    <Box>
+      {/* Filter row */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+        <Typography variant="body2" sx={{ color: TEXT_SECONDARY, fontWeight: 500 }}>
+          Substratum:
+        </Typography>
+        <Select
+          size="small"
+          value={filterSubstratumId}
+          onChange={(e) => setFilterSubstratumId(e.target.value)}
+          sx={{ minWidth: 200 }}
+        >
+          <MenuItem value="all">All Substrata</MenuItem>
+          {substrata.map((sub) => (
+            <MenuItem key={sub.id} value={sub.id}>
+              {sub.name}
+            </MenuItem>
+          ))}
+        </Select>
+      </Box>
+
+      {/* Withdrawals table */}
+      <Box sx={{ border: `1px solid ${BORDER_COLOR}`, borderRadius: 1, overflow: 'hidden' }}>
+        <Table size="small">
+          <TableHead>
+            <TableRow sx={{ bgcolor: HEADER_BG }}>
+              <TableCell sx={{ fontWeight: 600, color: TEXT_PRIMARY, borderBottom: `1px solid ${BORDER_COLOR}` }}>
+                Date
+              </TableCell>
+              <TableCell sx={{ fontWeight: 600, color: TEXT_PRIMARY, borderBottom: `1px solid ${BORDER_COLOR}` }}>
+                Species
+              </TableCell>
+              <TableCell sx={{ fontWeight: 600, color: TEXT_PRIMARY, borderBottom: `1px solid ${BORDER_COLOR}` }}>
+                Substratum
+              </TableCell>
+              <TableCell align="right" sx={{ fontWeight: 600, color: TEXT_PRIMARY, borderBottom: `1px solid ${BORDER_COLOR}` }}>
+                Quantity
+              </TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {filtered.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={4} align="center" sx={{ py: 6, color: TEXT_SECONDARY }}>
+                  No withdrawals found
+                </TableCell>
+              </TableRow>
+            ) : (
+              filtered.map((w) => {
+                const sp = speciesList.find((s) => s.id === w.speciesId);
+                const sub = substrata.find((s) => s.id === w.substratumId);
+                const dateLabel = new Date(w.date + 'T00:00:00').toLocaleDateString('en-US', {
+                  month: 'short', day: 'numeric', year: 'numeric',
+                });
+                return (
+                  <TableRow key={w.id} sx={{ '& td': { borderBottom: `1px solid ${BORDER_COLOR}` } }}>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ color: TEXT_PRIMARY }}>{dateLabel}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ color: TEXT_SECONDARY, fontStyle: 'italic' }}>
+                        {sp?.scientificName} ({sp?.commonName})
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ color: TEXT_PRIMARY }}>{sub?.name}</Typography>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: TEXT_PRIMARY }}>
+                        {w.quantity.toLocaleString()}
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </Box>
+    </Box>
+  );
+}
+
+// --- Withdrawal Details screen ---
+
+type WithdrawalPurpose = 'Planting' | 'Nursery Transfer' | 'Dead' | 'Other';
+
+function getMockBatches(speciesId: string): string[] {
+  const n = parseInt(speciesId.replace('sp', ''), 10) || 1;
+  const pad = (x: number) => String(x).padStart(3, '0');
+  return [
+    `24-2-${n}-${pad(44 + (n % 10))}`,
+    `25-2-${n + 1}-${pad(20 + (n % 8))}`,
+    `25-2-${n + 2}-${pad(3 + (n % 7))}`,
+    `25-2-${n}-${pad(4 + (n % 6))}`,
+    `25-2-${n + 3}-${pad(19 + (n % 9))}`,
+    `24-2-${n + 1}-${pad(44 + ((n + 1) % 10))}`,
+  ].slice(0, 4 + (n % 3));
+}
+
+function WithdrawalDetailsScreen({
+  speciesId,
+  species,
+  remaining,
+  onCancel,
+  onNext,
+  initialSiteId,
+  initialSeasonId,
+  initialStratumId,
+  initialSubstratumId,
+}: {
+  speciesId: string;
+  species: { scientificName: string; commonName: string } | null;
+  remaining: number;
+  onCancel: () => void;
+  onNext: (quantity: number) => void;
+  initialSiteId?: string;
+  initialSeasonId?: string;
+  initialStratumId?: string;
+  initialSubstratumId?: string;
+}) {
+  const [purpose, setPurpose] = useState<WithdrawalPurpose>('Planting');
+  const [fromNursery, setFromNursery] = useState('');
+  const [selectedSiteId, setSelectedSiteId] = useState(initialSiteId ?? '');
+  const [selectedSeasonId, setSelectedSeasonId] = useState(initialSeasonId ?? '');
+  const [selectedStratumId, setSelectedStratumId] = useState(initialStratumId ?? '');
+  const [selectedSubstratumId, setSelectedSubstratumId] = useState(initialSubstratumId ?? '');
+  const [withdrawDate, setWithdrawDate] = useState(new Date().toISOString().slice(0, 10));
+  const [notes, setNotes] = useState('');
+
+  const seasonsForSite    = nurseryPlanningSeasons.filter((s) => s.siteId === selectedSiteId);
+  const strataForSite     = strata.filter((s) => s.siteId === selectedSiteId);
+  const substrataForStrat = substrata.filter((s) => s.stratumId === selectedStratumId);
+
+  const handleSiteChange = (siteId: string) => {
+    setSelectedSiteId(siteId);
+    setSelectedSeasonId('');
+    setSelectedStratumId('');
+    setSelectedSubstratumId('');
+  };
+
+  const handleStratumChange = (stratumId: string) => {
+    setSelectedStratumId(stratumId);
+    setSelectedSubstratumId('');
+  };
+
+  const batches = getMockBatches(speciesId);
+
+  return (
+    <Box sx={{ bgcolor: '#F0EFEB', minHeight: '100%', pb: 12 }}>
+      <Box sx={{ maxWidth: 640, mx: 'auto', pt: 5, px: 2 }}>
+        <Box sx={{ bgcolor: '#fff', borderRadius: 2, p: 4, display: 'flex', flexDirection: 'column', gap: 3 }}>
+
+          {/* Title */}
+          <Box>
+            <Typography variant="h6" sx={{ fontWeight: 600, color: TEXT_PRIMARY, mb: 0.5 }}>
+              Withdrawal Details
+            </Typography>
+            <Typography variant="body2" sx={{ color: TEXT_SECONDARY }}>
+              Select a withdrawal purpose and enter the quantities from each batch to withdraw.
+            </Typography>
+          </Box>
+
+          {/* Batches Selected */}
+          <Box>
+            <Typography variant="caption" sx={{ color: TEXT_SECONDARY, fontWeight: 500 }}>
+              Batches Selected
+            </Typography>
+            <Typography variant="body2" sx={{ color: TEXT_PRIMARY, mt: 0.25 }}>
+              {batches.join(', ')}
+            </Typography>
+          </Box>
+
+          {/* Species Selected */}
+          <Box>
+            <Typography variant="caption" sx={{ color: TEXT_SECONDARY, fontWeight: 500 }}>
+              Species Selected
+            </Typography>
+            <Typography variant="body1" sx={{ color: TEXT_PRIMARY, fontWeight: 600, fontStyle: 'italic', mt: 0.25 }}>
+              {species?.scientificName} ({species?.commonName})
+            </Typography>
+          </Box>
+
+          {/* Purpose */}
+          <FormControl>
+            <FormLabel sx={{ color: TEXT_SECONDARY, fontSize: '0.75rem', fontWeight: 500, mb: 0.5, '&.Mui-focused': { color: TEXT_SECONDARY } }}>
+              Purpose *
+            </FormLabel>
+            <RadioGroup value={purpose} onChange={(e) => setPurpose(e.target.value as WithdrawalPurpose)}>
+              {(['Planting', 'Nursery Transfer', 'Dead', 'Other'] as WithdrawalPurpose[]).map((p) => (
+                <FormControlLabel
+                  key={p}
+                  value={p}
+                  control={<Radio size="small" sx={{ color: TEXT_SECONDARY, '&.Mui-checked': { color: PRIMARY_GREEN } }} />}
+                  label={<Typography variant="body2" sx={{ color: TEXT_PRIMARY }}>{p}</Typography>}
+                />
+              ))}
+            </RadioGroup>
+          </FormControl>
+
+          {/* From: Nursery */}
+          <Box>
+            <Typography variant="caption" sx={{ color: TEXT_SECONDARY, fontWeight: 500, display: 'block', mb: 0.75 }}>
+              From: Nursery *
+            </Typography>
+            <Select
+              displayEmpty
+              value={fromNursery}
+              onChange={(e) => setFromNursery(e.target.value)}
+              fullWidth
+              size="small"
+              renderValue={(v) => v || <Typography sx={{ color: TEXT_SECONDARY, fontSize: '0.875rem' }}>Select...</Typography>}
+            >
+              {nurseries.map((n) => (
+                <MenuItem key={n.id} value={n.name}>{n.name}</MenuItem>
+              ))}
+            </Select>
+          </Box>
+
+          {/* Filter by Project */}
+          <Box>
+            <Typography variant="caption" sx={{ color: TEXT_SECONDARY, fontWeight: 500, display: 'block', mb: 0.75 }}>
+              Filter by Project
+            </Typography>
+            <Select displayEmpty value="" fullWidth size="small" renderValue={() => ''}>
+              <MenuItem value="" />
+            </Select>
+          </Box>
+
+          {/* Divider */}
+          <Box sx={{ borderTop: `1px solid ${BORDER_COLOR}` }} />
+
+          {purpose === 'Planting' && (
+            <>
+              {/* To: Planting Site */}
+              <Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.75 }}>
+                  <Typography variant="caption" sx={{ color: TEXT_SECONDARY, fontWeight: 500 }}>
+                    To: Planting Site *
+                  </Typography>
+                  <InfoOutlinedIcon sx={{ fontSize: 14, color: TEXT_SECONDARY }} />
+                </Box>
+                <Select
+                  displayEmpty
+                  value={selectedSiteId}
+                  onChange={(e) => handleSiteChange(e.target.value)}
+                  fullWidth
+                  size="small"
+                  renderValue={(v) => {
+                    const site = plantingSites.find((s) => s.id === v);
+                    return site ? site.name : <Typography sx={{ color: TEXT_SECONDARY, fontSize: '0.875rem' }}>Select...</Typography>;
+                  }}
+                >
+                  {plantingSites.map((s) => (
+                    <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+                  ))}
+                </Select>
+              </Box>
+
+              {/* Planting Season */}
+              <Box>
+                <Typography variant="caption" sx={{ color: TEXT_SECONDARY, fontWeight: 500, display: 'block', mb: 0.75 }}>
+                  Planting Season *
+                </Typography>
+                <Select
+                  displayEmpty
+                  value={selectedSeasonId}
+                  onChange={(e) => setSelectedSeasonId(e.target.value)}
+                  fullWidth
+                  size="small"
+                  disabled={!selectedSiteId}
+                  renderValue={(v) => {
+                    const season = seasonsForSite.find((s) => s.id === v);
+                    return season ? season.name : <Typography sx={{ color: TEXT_SECONDARY, fontSize: '0.875rem' }}>{selectedSiteId ? 'Select...' : 'Select a site first'}</Typography>;
+                  }}
+                >
+                  {seasonsForSite.map((s) => (
+                    <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+                  ))}
+                </Select>
+              </Box>
+
+              {/* To: Stratum */}
+              <Box>
+                <Typography variant="caption" sx={{ color: TEXT_SECONDARY, fontWeight: 500, display: 'block', mb: 0.75 }}>
+                  To: Stratum *
+                </Typography>
+                <Select
+                  displayEmpty
+                  value={selectedStratumId}
+                  onChange={(e) => handleStratumChange(e.target.value)}
+                  fullWidth
+                  size="small"
+                  disabled={!selectedSiteId}
+                  renderValue={(v) => {
+                    const stratum = strataForSite.find((s) => s.id === v);
+                    return stratum ? stratum.name : <Typography sx={{ color: TEXT_SECONDARY, fontSize: '0.875rem' }}>{selectedSiteId ? 'Select...' : 'Select a site first'}</Typography>;
+                  }}
+                >
+                  {strataForSite.map((s) => (
+                    <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+                  ))}
+                </Select>
+              </Box>
+
+              {/* To: Substratum */}
+              <Box>
+                <Typography variant="caption" sx={{ color: TEXT_SECONDARY, fontWeight: 500, display: 'block', mb: 0.75 }}>
+                  To: Substratum *
+                </Typography>
+                <Select
+                  displayEmpty
+                  value={selectedSubstratumId}
+                  onChange={(e) => setSelectedSubstratumId(e.target.value)}
+                  fullWidth
+                  size="small"
+                  disabled={!selectedStratumId}
+                  renderValue={(v) => {
+                    const sub = substrataForStrat.find((s) => s.id === v);
+                    return sub ? sub.name : <Typography sx={{ color: TEXT_SECONDARY, fontSize: '0.875rem' }}>{selectedStratumId ? 'Select...' : 'Select a stratum first'}</Typography>;
+                  }}
+                >
+                  {substrataForStrat.map((s) => (
+                    <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
+                  ))}
+                </Select>
+              </Box>
+            </>
+          )}
+
+          {/* Withdraw Date */}
+          <TextField
+            label="Withdraw Date *"
+            type="date"
+            value={withdrawDate}
+            onChange={(e) => setWithdrawDate(e.target.value)}
+            fullWidth
+            size="small"
+            slotProps={{ inputLabel: { shrink: true } }}
+          />
+
+          {/* Notes */}
+          <TextField
+            label="Notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            fullWidth
+            multiline
+            minRows={3}
+          />
+        </Box>
+      </Box>
+
+      {/* Fixed bottom bar */}
+      <Box
+        sx={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          bgcolor: '#fff',
+          borderTop: `1px solid ${BORDER_COLOR}`,
+          px: 4,
+          py: 2,
+          display: 'flex',
+          justifyContent: 'space-between',
+          zIndex: 100,
+        }}
+      >
+        <Button label="Cancel" onClick={onCancel} priority="secondary" />
+        <Button label="Next" onClick={() => onNext(remaining)} />
+      </Box>
+    </Box>
+  );
 }
 
 // --- View Planting Season sub-screen ---
@@ -170,24 +663,61 @@ function ViewPlantingSeasonView({
   onBack,
   stratumTargets,
   onStratumTargetsChange,
+  onNavigateToProgress,
+  onSeasonUpdate,
 }: {
   season: Season;
   onBack: () => void;
   stratumTargets: StratumTarget[];
   onStratumTargetsChange: (targets: StratumTarget[]) => void;
+  onNavigateToProgress: (params: { substratumId: string; speciesId?: string; seasonId: string; siteId: string }) => void;
+  onSeasonUpdate: (updated: Season) => void;
 }) {
+  const planningCtx = usePlanningContext();
+  const originalTargetsRef = useRef(stratumTargets);
+  const [viewMode, setViewMode] = useState<'species' | 'strata'>('strata');
   const [addingToStratumId, setAddingToStratumId] = useState<string | null>(null);
   const [showAllSpecies, setShowAllSpecies] = useState<Set<string>>(new Set());
+  const [withdrawTarget, setWithdrawTarget] = useState<{
+    speciesId: string;
+    substratumId: string;
+    plantingSiteId: string;
+    plantingSeasonId: string;
+    stratumId: string;
+  } | null>(null);
+  const [editingNeedBy, setEditingNeedBy] = useState(false);
+  const [draftNeedBy, setDraftNeedBy] = useState(season.needByDate ?? season.startDate ?? '');
+
+  const commitNeedBy = () => {
+    onSeasonUpdate({ ...season, needByDate: draftNeedBy });
+    setEditingNeedBy(false);
+  };
 
   const getSpeciesForStratum = (stratumId: string) =>
     stratumTargets.filter((t) => t.stratumId === stratumId);
 
   const updateTarget = (speciesId: string, stratumId: string, value: number) => {
-    onStratumTargetsChange(
-      stratumTargets.map((t) =>
-        t.speciesId === speciesId && t.stratumId === stratumId ? { ...t, target: value } : t
-      )
+    const newTargets = stratumTargets.map((t) =>
+      t.speciesId === speciesId && t.stratumId === stratumId ? { ...t, target: value } : t
     );
+    onStratumTargetsChange(newTargets);
+
+    // Compute new total for this species across all substrata in this season's site
+    const siteSubIds = substrata.filter((s) => s.siteId === season.siteId).map((s) => s.id);
+    const oldTotal = stratumTargets
+      .filter((t) => t.speciesId === speciesId && siteSubIds.includes(t.stratumId))
+      .reduce((sum, t) => sum + t.target, 0);
+    const newTotal = newTargets
+      .filter((t) => t.speciesId === speciesId && siteSubIds.includes(t.stratumId))
+      .reduce((sum, t) => sum + t.target, 0);
+    if (newTotal !== oldTotal) {
+      const sp = speciesList.find((s) => s.id === speciesId);
+      planningCtx.updateRequested(
+        speciesId, season.id, newTotal, oldTotal,
+        sp ? `${sp.scientificName} (${sp.commonName})` : speciesId,
+        season.name,
+      );
+    }
   };
 
   const deleteSpecies = (speciesId: string, stratumId: string) => {
@@ -204,31 +734,78 @@ function ViewPlantingSeasonView({
     setAddingToStratumId(null);
   };
 
-  const tableData = useMemo<StratumRow[]>(
+  const tableData = useMemo<TableRow[]>(
     () =>
-      strata.map((st) => {
-        const stTargets = getSpeciesForStratum(st.id);
-        const target = stTargets.reduce((s, t) => s + t.target, 0);
-        const withdrawn = stTargets.reduce((s, t) => s + t.withdrawn, 0);
+      strata.map((stratum) => {
+        const stratumSubstrata = substrata.filter((s) => s.stratumId === stratum.id);
+        const subRows: TableRow[] = stratumSubstrata.map((sub) => {
+          const subTargets = getSpeciesForStratum(sub.id);
+          const target = subTargets.reduce((s, t) => s + t.target, 0);
+          const withdrawn = subTargets.reduce((s, t) => s + t.withdrawn, 0);
+          return {
+            id: sub.id,
+            stratumName: '',
+            substratumId: sub.id,
+            substratumName: sub.name,
+            target,
+            withdrawn,
+            remaining: target - withdrawn,
+          };
+        });
+        const target = subRows.reduce((s, r) => s + r.target, 0);
+        const withdrawn = subRows.reduce((s, r) => s + r.withdrawn, 0);
         return {
-          stratumId: st.id,
-          stratumName: st.name,
+          id: stratum.id,
+          stratumName: stratum.name,
+          substratumId: '',
+          substratumName: '',
           target,
           withdrawn,
           remaining: target - withdrawn,
+          subRows,
         };
       }),
     [stratumTargets]
   );
 
-  const columns = useMemo<MRT_ColumnDef<StratumRow>[]>(
+  const speciesSummary = useMemo(() => {
+    const map = new Map<string, { target: number; readyToPlant: number; withdrawn: number }>();
+    for (const t of stratumTargets) {
+      const existing = map.get(t.speciesId) ?? { target: 0, readyToPlant: 0, withdrawn: 0 };
+      map.set(t.speciesId, {
+        target: existing.target + t.target,
+        readyToPlant: existing.readyToPlant + t.readyToPlant,
+        withdrawn: existing.withdrawn + t.withdrawn,
+      });
+    }
+    return [...map.entries()]
+      .map(([speciesId, totals]) => ({ speciesId, ...totals }))
+      .filter((row) => row.target > 0 || row.withdrawn > 0)
+      .sort((a, b) => {
+        const nameA = speciesList.find((s) => s.id === a.speciesId)?.scientificName ?? '';
+        const nameB = speciesList.find((s) => s.id === b.speciesId)?.scientificName ?? '';
+        return nameA.localeCompare(nameB);
+      });
+  }, [stratumTargets]);
+
+  const columns = useMemo<MRT_ColumnDef<TableRow>[]>(
     () => [
       {
         accessorKey: 'stratumName',
         header: 'Stratum',
-        size: 180,
+        size: 160,
         Cell: ({ cell }) => (
           <Typography variant="body2" sx={{ fontWeight: 600, color: TEXT_PRIMARY }}>
+            {cell.getValue<string>()}
+          </Typography>
+        ),
+      },
+      {
+        accessorKey: 'substratumName',
+        header: 'Substratum',
+        size: 180,
+        Cell: ({ cell }) => (
+          <Typography variant="body2" sx={{ color: TEXT_PRIMARY }}>
             {cell.getValue<string>()}
           </Typography>
         ),
@@ -252,7 +829,20 @@ function ViewPlantingSeasonView({
         muiTableHeadCellProps: { align: 'right' },
         muiTableBodyCellProps: { align: 'right' },
         Cell: ({ row }) => {
-          const { withdrawn, target } = row.original;
+          const { withdrawn, target, substratumId } = row.original;
+          if (substratumId) {
+            return (
+              <Box
+                onClick={() => onNavigateToProgress({ substratumId, seasonId: season.id, siteId: season.siteId ?? '' })}
+                sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, cursor: 'pointer' }}
+              >
+                <Typography variant="body2" sx={{ color: getWithdrawnColor(withdrawn, target) }}>
+                  {withdrawn.toLocaleString()}
+                </Typography>
+                <OpenInNewIcon sx={{ fontSize: 14, color: PRIMARY_GREEN, mb: '2px' }} />
+              </Box>
+            );
+          }
           return (
             <Typography variant="body2" sx={{ color: getWithdrawnColor(withdrawn, target) }}>
               {withdrawn.toLocaleString()}
@@ -285,11 +875,14 @@ function ViewPlantingSeasonView({
   const table = useMaterialReactTable({
     columns,
     data: tableData,
+    getSubRows: (row) => row.subRows,
     enableExpanding: true,
     enableExpandAll: true,
     renderDetailPanel: ({ row }) => {
-      const stratumId = row.original.stratumId;
-      const spTargets = getSpeciesForStratum(stratumId);
+      const substratumId = row.original.substratumId;
+      if (!substratumId) return null;
+
+      const spTargets = getSpeciesForStratum(substratumId);
 
       // Sort alphabetically by scientific name
       const sortedSpTargets = [...spTargets].sort((a, b) => {
@@ -299,7 +892,7 @@ function ViewPlantingSeasonView({
       });
 
       const isEmpty = sortedSpTargets.length === 0;
-      const showAll = showAllSpecies.has(stratumId);
+      const showAll = showAllSpecies.has(substratumId);
       const displayedTargets = showAll ? sortedSpTargets : sortedSpTargets.slice(0, SPECIES_LIMIT);
       const hiddenCount = sortedSpTargets.length - SPECIES_LIMIT;
 
@@ -307,8 +900,8 @@ function ViewPlantingSeasonView({
       const available = speciesList.filter((sp) => !addedIds.includes(sp.id)).sort((a, b) =>
         a.scientificName.localeCompare(b.scientificName)
       );
-      const isAddingHere = addingToStratumId === stratumId;
-      // Show selector by default for empty strata, or when explicitly triggered
+      const isAddingHere = addingToStratumId === substratumId;
+      // Show selector by default for empty substrata, or when explicitly triggered
       const showSelector = isAddingHere || isEmpty;
 
       return (
@@ -352,7 +945,7 @@ function ViewPlantingSeasonView({
                         value={st.target}
                         onChange={(e) => {
                           const val = parseInt(e.target.value, 10);
-                          if (!isNaN(val) && val >= 0) updateTarget(st.speciesId, stratumId, val);
+                          if (!isNaN(val) && val >= 0) updateTarget(st.speciesId, substratumId, val);
                         }}
                         onClick={(e) => e.stopPropagation()}
                         slotProps={{
@@ -363,24 +956,51 @@ function ViewPlantingSeasonView({
                       />
                     </TableCell>
                     <TableCell align="right">
-                      <Typography variant="body2" sx={{ color: getWithdrawnColor(st.withdrawn, st.target) }}>
-                        {st.withdrawn.toLocaleString()}
-                      </Typography>
+                      <Box
+                        onClick={() => onNavigateToProgress({ substratumId, speciesId: st.speciesId, seasonId: season.id, siteId: season.siteId ?? '' })}
+                        sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, cursor: 'pointer', justifyContent: 'flex-end' }}
+                      >
+                        <Typography variant="body2" sx={{ color: getWithdrawnColor(st.withdrawn, st.target) }}>
+                          {st.withdrawn.toLocaleString()}
+                        </Typography>
+                        <OpenInNewIcon sx={{ fontSize: 14, color: PRIMARY_GREEN, mb: '2px' }} />
+                      </Box>
                     </TableCell>
                     <TableCell align="right">
-                      <Typography
-                        variant="body2"
-                        sx={{ color: getRemainingPlantedColor(remaining, st.target) }}
-                      >
-                        {remaining.toLocaleString()}
-                      </Typography>
+                      <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1, justifyContent: 'flex-end' }}>
+                        <Typography
+                          variant="body2"
+                          sx={{ color: getRemainingPlantedColor(remaining, st.target) }}
+                        >
+                          {remaining.toLocaleString()}
+                        </Typography>
+                        {remaining > 0 && (
+                          <Typography
+                            variant="body2"
+                            sx={{ color: PRIMARY_GREEN, cursor: 'pointer', '&:hover': { textDecoration: 'underline' }, whiteSpace: 'nowrap' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const sub = substrata.find((s) => s.id === substratumId);
+                              setWithdrawTarget({
+                                speciesId: st.speciesId,
+                                substratumId,
+                                plantingSiteId: season.siteId ?? '',
+                                plantingSeasonId: season.id,
+                                stratumId: sub?.stratumId ?? '',
+                              });
+                            }}
+                          >
+                            + Withdraw
+                          </Typography>
+                        )}
+                      </Box>
                     </TableCell>
                     <TableCell align="center" sx={{ px: 0 }}>
                       <IconButton
                         size="small"
                         onClick={(e) => {
                           e.stopPropagation();
-                          deleteSpecies(st.speciesId, stratumId);
+                          deleteSpecies(st.speciesId, substratumId);
                         }}
                         sx={{ color: TEXT_SECONDARY, '&:hover': { color: COLOR_GAP } }}
                       >
@@ -391,7 +1011,7 @@ function ViewPlantingSeasonView({
                 );
               })}
 
-              {/* Species selector — shown by default for empty strata, or when "Add Species" is clicked */}
+              {/* Species selector — shown by default for empty substrata, or when "Add Species" is clicked */}
               {showSelector && (
                 <TableRow>
                   <TableCell colSpan={5} sx={{ borderBottom: `1px solid ${BORDER_COLOR}` }}>
@@ -400,10 +1020,10 @@ function ViewPlantingSeasonView({
                       options={available}
                       getOptionLabel={(sp) => `${sp.scientificName} (${sp.commonName})`}
                       onChange={(_, val) => {
-                        if (val) addSpecies(val.id, stratumId);
+                        if (val) addSpecies(val.id, substratumId);
                       }}
                       onBlur={() => {
-                        // Only hide the selector on blur if it was explicitly opened (non-empty stratum)
+                        // Only hide the selector on blur if it was explicitly opened (non-empty substratum)
                         if (!isEmpty) setAddingToStratumId(null);
                       }}
                       renderInput={(params) => (
@@ -426,7 +1046,7 @@ function ViewPlantingSeasonView({
               <Typography
                 variant="body2"
                 sx={{ color: PRIMARY_GREEN, cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
-                onClick={() => setShowAllSpecies((prev) => new Set([...prev, stratumId]))}
+                onClick={() => setShowAllSpecies((prev) => new Set([...prev, substratumId]))}
               >
                 Show {hiddenCount} more
               </Typography>
@@ -438,7 +1058,7 @@ function ViewPlantingSeasonView({
                 onClick={() =>
                   setShowAllSpecies((prev) => {
                     const next = new Set(prev);
-                    next.delete(stratumId);
+                    next.delete(substratumId);
                     return next;
                   })
                 }
@@ -456,7 +1076,7 @@ function ViewPlantingSeasonView({
                   display: 'inline',
                   '&:hover': { textDecoration: 'underline' },
                 }}
-                onClick={() => setAddingToStratumId(stratumId)}
+                onClick={() => setAddingToStratumId(substratumId)}
               >
                 + Add Species
               </Typography>
@@ -473,11 +1093,51 @@ function ViewPlantingSeasonView({
       sx: { fontWeight: 600, color: TEXT_PRIMARY, borderBottom: `1px solid ${BORDER_COLOR}` },
     },
     muiTableBodyCellProps: { sx: { borderBottom: `1px solid ${BORDER_COLOR}` } },
-    initialState: { density: 'compact', expanded: { '0': true, '1': true } },
+    initialState: { density: 'compact', expanded: { '0': true, '1': true, '2': true, '3': true } },
   });
+
+  if (withdrawTarget) {
+    const sp = speciesList.find((s) => s.id === withdrawTarget.speciesId);
+    const sub = substrata.find((s) => s.id === withdrawTarget.substratumId);
+    const st = stratumTargets.find(
+      (t) => t.speciesId === withdrawTarget.speciesId && t.stratumId === withdrawTarget.substratumId
+    );
+    const remaining = st ? st.target - st.withdrawn : 0;
+    return (
+      <WithdrawalDetailsScreen
+        speciesId={withdrawTarget.speciesId}
+        species={sp ?? null}
+        remaining={remaining}
+        initialSiteId={withdrawTarget.plantingSiteId}
+        initialSeasonId={withdrawTarget.plantingSeasonId}
+        initialStratumId={withdrawTarget.stratumId}
+        initialSubstratumId={withdrawTarget.substratumId}
+        onCancel={() => setWithdrawTarget(null)}
+        onNext={(quantity) => {
+          onStratumTargetsChange(
+            stratumTargets.map((t) =>
+              t.speciesId === withdrawTarget.speciesId && t.stratumId === withdrawTarget.substratumId
+                ? { ...t, withdrawn: t.withdrawn + quantity }
+                : t
+            )
+          );
+          setWithdrawTarget(null);
+        }}
+      />
+    );
+  }
 
   return (
     <Box sx={{ p: 3 }}>
+      {planningCtx.plantingNotification && (
+        <Alert
+          severity="info"
+          onClose={planningCtx.dismissPlantingNotification}
+          sx={{ mb: 2, bgcolor: '#E8F5E9', color: '#1B5E20', border: '1px solid #A5D6A7', '& .MuiAlert-icon': { color: '#2E7D32' } }}
+        >
+          Allocation numbers have been updated in Nursery Planning.
+        </Alert>
+      )}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 2 }}>
           <IconButton size="small" onClick={onBack} sx={{ color: TEXT_SECONDARY }}>
             <ArrowBackIcon fontSize="small" />
@@ -498,13 +1158,146 @@ function ViewPlantingSeasonView({
         <Typography variant="h5" sx={{ fontWeight: 600, color: TEXT_PRIMARY, mb: 0.5 }}>
           {season.name}
         </Typography>
-        {season.startDate && season.endDate && (
-          <Typography variant="body2" sx={{ color: TEXT_SECONDARY, mb: 3 }}>
-            {formatDateRange(season.startDate, season.endDate)}
-          </Typography>
-        )}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, mb: 3, flexWrap: 'wrap' }}>
+          {season.startDate && season.endDate && (
+            <Typography variant="body2" sx={{ color: TEXT_SECONDARY }}>
+              {formatDateRange(season.startDate, season.endDate)}
+            </Typography>
+          )}
 
-        <MaterialReactTable table={table} />
+          {/* Plants needed by chip */}
+          <Box
+            sx={{
+              display: 'inline-flex', alignItems: 'center', gap: 0.75,
+              bgcolor: HEADER_BG, border: `1px solid ${BORDER_COLOR}`,
+              borderRadius: '6px', px: 1.25, py: 0.5,
+            }}
+          >
+            <CalendarTodayIcon sx={{ fontSize: 13, color: TEXT_SECONDARY }} />
+            <Typography variant="caption" sx={{ color: TEXT_SECONDARY, fontWeight: 500 }}>
+              Plants needed by:
+            </Typography>
+            {editingNeedBy ? (
+              <TextField
+                type="date"
+                value={draftNeedBy}
+                onChange={(e) => setDraftNeedBy(e.target.value)}
+                onBlur={commitNeedBy}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitNeedBy();
+                  if (e.key === 'Escape') {
+                    setDraftNeedBy(season.needByDate ?? season.startDate ?? '');
+                    setEditingNeedBy(false);
+                  }
+                }}
+                size="small"
+                autoFocus
+                slotProps={{ inputLabel: { shrink: true } }}
+                sx={{ width: 140 }}
+              />
+            ) : (
+              <>
+                <Typography variant="caption" sx={{ color: TEXT_PRIMARY, fontWeight: 600 }}>
+                  {formatDate(season.needByDate ?? season.startDate ?? '')}
+                </Typography>
+                <IconButton
+                  size="small"
+                  onClick={() => { setDraftNeedBy(season.needByDate ?? season.startDate ?? ''); setEditingNeedBy(true); }}
+                  sx={{ p: '2px', color: TEXT_SECONDARY }}
+                >
+                  <EditIcon sx={{ fontSize: 13 }} />
+                </IconButton>
+              </>
+            )}
+          </Box>
+        </Box>
+
+        {/* Segmented control */}
+        <Box sx={{ display: 'flex', gap: 0, mb: 2, border: `1px solid ${BORDER_COLOR}`, borderRadius: 1, overflow: 'hidden', width: 'fit-content' }}>
+          {(['strata', 'species'] as const).map((mode) => (
+            <Box
+              key={mode}
+              onClick={() => setViewMode(mode)}
+              sx={{
+                px: 2.5, py: 0.75, cursor: 'pointer', userSelect: 'none',
+                bgcolor: viewMode === mode ? PRIMARY_GREEN : '#fff',
+                color: viewMode === mode ? '#fff' : TEXT_SECONDARY,
+                fontWeight: viewMode === mode ? 600 : 400,
+                fontSize: '0.875rem',
+                borderRight: mode === 'strata' ? `1px solid ${BORDER_COLOR}` : 'none',
+                '&:hover': { bgcolor: viewMode === mode ? PRIMARY_GREEN : HEADER_BG },
+                transition: 'background-color 0.15s',
+              }}
+            >
+              {mode === 'strata' ? 'Strata View' : 'Species Summary'}
+            </Box>
+          ))}
+        </Box>
+
+        {viewMode === 'strata' && <MaterialReactTable table={table} />}
+
+        {viewMode === 'species' && (() => {
+          const headCell = { fontWeight: 600, color: TEXT_PRIMARY, borderBottom: `1px solid ${BORDER_COLOR}`, fontSize: '0.75rem' } as const;
+          return (
+            <Box sx={{ border: `1px solid ${BORDER_COLOR}`, borderRadius: 1, overflow: 'hidden' }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ bgcolor: HEADER_BG }}>
+                    <TableCell sx={headCell}>Species</TableCell>
+                    <TableCell align="right" sx={headCell}>Planted Goal</TableCell>
+                    <TableCell align="right" sx={headCell}>Allocated</TableCell>
+                    <TableCell align="right" sx={headCell}>Withdrawn for Planting</TableCell>
+                    <TableCell align="right" sx={headCell}>Remaining to be Planted</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {speciesSummary.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} align="center" sx={{ py: 4, color: TEXT_SECONDARY }}>
+                        No species assigned yet
+                      </TableCell>
+                    </TableRow>
+                  ) : speciesSummary.map((row) => {
+                    const sp = speciesList.find((s) => s.id === row.speciesId);
+                    const remaining = row.target - row.withdrawn;
+                    return (
+                      <TableRow key={row.speciesId} sx={{ '& td': { borderBottom: `1px solid ${BORDER_COLOR}` } }}>
+                        <TableCell>
+                          <Typography variant="body2" sx={{ fontStyle: 'italic', color: TEXT_SECONDARY }}>
+                            {sp?.scientificName}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: TEXT_SECONDARY }}>
+                            {sp?.commonName}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: TEXT_PRIMARY }}>
+                            {row.target.toLocaleString()}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="body2" sx={{ color: TEXT_PRIMARY }}>
+                            {row.readyToPlant.toLocaleString()}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="body2" sx={{ color: getWithdrawnColor(row.withdrawn, row.target) }}>
+                            {row.withdrawn.toLocaleString()}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="body2" sx={{ fontWeight: 500, color: getRemainingPlantedColor(remaining, row.target) }}>
+                            {remaining.toLocaleString()}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </Box>
+          );
+        })()}
     </Box>
   );
 }
@@ -515,14 +1308,17 @@ interface SeasonCardProps {
   season: Season;
   onViewSeason: () => void;
   onUpdate: (updated: Season) => void;
+  onDelete: () => void;
   archived?: boolean;
   stratumTargets: StratumTarget[];
 }
 
-function SeasonCard({ season, onViewSeason, onUpdate, archived = false, stratumTargets }: SeasonCardProps) {
+function SeasonCard({ season, onViewSeason, onUpdate, onDelete, archived = false, stratumTargets }: SeasonCardProps) {
   const [editingName, setEditingName] = useState(false);
   const [editingDates, setEditingDates] = useState(false);
   const [draftName, setDraftName] = useState(season.name);
+  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [draftStart, setDraftStart] = useState(season.startDate);
   const [draftEnd, setDraftEnd] = useState(season.endDate);
 
@@ -534,8 +1330,12 @@ function SeasonCard({ season, onViewSeason, onUpdate, archived = false, stratumT
   const progress = totalTargets > 0 ? (totalPlanted / totalTargets) * 100 : 0;
   const progressBarColor = progress >= 80 ? '#4CAF50' : progress >= 41 ? '#FF9800' : '#F44336';
 
-  // Strata that have at least one species assigned
-  const activeStrataIds = [...new Set(stratumTargets.map((t) => t.stratumId))];
+  // Substrata that have at least one species with a planted goal
+  const activeStrataIds = [...new Set(stratumTargets.filter((t) => t.target > 0).map((t) => t.stratumId))];
+  // Parent strata that have at least one substratum with a planted goal
+  const activeParentStrataIds = [...new Set(
+    substrata.filter((sub) => activeStrataIds.includes(sub.id)).map((sub) => sub.stratumId)
+  )];
 
   const commitName = () => {
     if (draftName.trim()) onUpdate({ ...season, name: draftName.trim() });
@@ -674,7 +1474,7 @@ function SeasonCard({ season, onViewSeason, onUpdate, archived = false, stratumT
           )}
         </Box>
 
-        {/* Metrics row: Progress | Planted Goal | Total Planted | Strata */}
+        {/* Metrics row: Progress | Planted Goal | Total Planted | Strata | Substrata */}
         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0 }}>
           {/* Progress */}
           <Box sx={{ minWidth: 220, pr: 2 }}>
@@ -714,13 +1514,39 @@ function SeasonCard({ season, onViewSeason, onUpdate, archived = false, stratumT
           </Box>
 
           {/* Strata */}
-          {activeStrataIds.length > 0 && (
-            <Box sx={{ pl: 2, borderLeft: '1px solid #E3E1D9' }}>
+          {activeParentStrataIds.length > 0 && (
+            <Box sx={{ pl: 2, pr: 2, borderLeft: '1px solid #E3E1D9' }}>
               <Typography sx={{ fontSize: 16, fontWeight: 600, color: '#000', mb: '8px' }}>
                 Strata
               </Typography>
               <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                {strata.filter((st) => activeStrataIds.includes(st.id)).map((st) => (
+                {strata.filter((st) => activeParentStrataIds.includes(st.id)).map((st) => (
+                  <Chip
+                    key={st.id}
+                    label={st.name}
+                    size="small"
+                    sx={{
+                      bgcolor: '#F2F0EE',
+                      color: '#7F785C',
+                      fontSize: '0.875rem',
+                      fontWeight: 500,
+                      px: 0.5,
+                      height: 28,
+                    }}
+                  />
+                ))}
+              </Box>
+            </Box>
+          )}
+
+          {/* Substrata */}
+          {activeStrataIds.length > 0 && (
+            <Box sx={{ pl: 2, borderLeft: '1px solid #E3E1D9' }}>
+              <Typography sx={{ fontSize: 16, fontWeight: 600, color: '#000', mb: '8px' }}>
+                Substrata
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                {substrata.filter((st) => activeStrataIds.includes(st.id)).map((st) => (
                   <Chip
                     key={st.id}
                     label={st.name}
@@ -741,53 +1567,733 @@ function SeasonCard({ season, onViewSeason, onUpdate, archived = false, stratumT
         </Box>
       </Box>
 
-      {/* Button — vertically centered by parent alignItems:center */}
-      <Button label="Manage Planting Season" onClick={onViewSeason} priority="secondary" />
+      {/* Actions — vertically centered by parent alignItems:center */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        <Button label="Manage Planting Season" onClick={onViewSeason} priority="secondary" />
+        <IconButton
+          size="small"
+          onClick={(e) => setMenuAnchor(e.currentTarget)}
+          sx={{ color: TEXT_SECONDARY }}
+        >
+          <MoreVertIcon sx={{ fontSize: 20 }} />
+        </IconButton>
+      </Box>
+
+      <Menu
+        anchorEl={menuAnchor}
+        open={Boolean(menuAnchor)}
+        onClose={() => setMenuAnchor(null)}
+      >
+        <MenuItem
+          onClick={() => { setMenuAnchor(null); setDeleteDialogOpen(true); }}
+          sx={{ color: COLOR_GAP }}
+        >
+          Delete
+        </MenuItem>
+      </Menu>
+
+      <DialogBox
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        title={active ? 'Delete Active Season?' : 'Delete Season?'}
+        size="medium"
+        scrolled
+        middleButtons={[
+          <Button key="cancel" label="Cancel" onClick={() => setDeleteDialogOpen(false)} priority="secondary" />,
+          <Button
+            key="delete"
+            label="Delete"
+            onClick={() => { setDeleteDialogOpen(false); onDelete(); }}
+          />,
+        ]}
+      >
+        {active ? (
+          <Typography variant="body2" sx={{ color: TEXT_PRIMARY }}>
+            <strong>{season.name}</strong> is currently active. Deleting it will permanently remove all
+            targets, withdrawals, and progress data for this season. This cannot be undone.
+          </Typography>
+        ) : (
+          <Typography variant="body2" sx={{ color: TEXT_PRIMARY }}>
+            Are you sure you want to delete <strong>{season.name}</strong>? This cannot be undone.
+          </Typography>
+        )}
+      </DialogBox>
+    </Box>
+  );
+}
+
+// --- Withdrawal Log page ---
+
+type WithdrawalRow = {
+  id: string;
+  date: string;
+  dateDisplay: string;
+  purpose: string;
+  nurseryName: string;
+  plantingSiteName: string;
+  plantingSeasonName: string;
+  stratumName: string;
+  substratumName: string;
+  speciesScientific: string;
+  speciesCommon: string;
+  quantity: number;
+};
+
+export function WithdrawalLogView() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initSubstratumId = searchParams.get('substratumId') ?? 'all';
+  const initPurpose      = searchParams.get('purpose')      ?? 'all';
+  const initSeasonId     = searchParams.get('seasonId')     ?? 'all';
+  const initSiteId       = searchParams.get('siteId')       ?? 'all';
+  const initSpeciesId    = searchParams.get('speciesId')    ?? 'all';
+
+  // Resolve display names once
+  const tableData = useMemo<WithdrawalRow[]>(() =>
+    [...mockWithdrawals]
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .map((w) => {
+        const sub = substrata.find((s) => s.id === w.substratumId);
+        const stratum = strata.find((s) => s.id === sub?.stratumId);
+        const sp = speciesList.find((s) => s.id === w.speciesId);
+        const season = nurseryPlanningSeasons.find((s) => s.id === w.plantingSeasonId);
+        return {
+          id: w.id,
+          date: w.date,
+          dateDisplay: formatDate(w.date),
+          purpose: w.purpose,
+          nurseryName: w.nurseryName,
+          plantingSiteName: w.plantingSiteName,
+          plantingSeasonName: season?.name ?? '—',
+          stratumName: stratum?.name ?? '—',
+          substratumName: sub?.name ?? '—',
+          speciesScientific: sp?.scientificName ?? '—',
+          speciesCommon: sp?.commonName ?? '',
+          quantity: w.quantity,
+        };
+      }),
+  []);
+
+  // Build initial MRT column filters from URL params
+  const initialColumnFilters = useMemo(() => {
+    const filters: { id: string; value: unknown }[] = [];
+    if (initPurpose !== 'all') filters.push({ id: 'purpose', value: initPurpose });
+    if (initSubstratumId !== 'all') {
+      const sub = substrata.find((s) => s.id === initSubstratumId);
+      if (sub) filters.push({ id: 'substratumName', value: [sub.name] });
+    }
+    if (initSeasonId !== 'all') {
+      const season = nurseryPlanningSeasons.find((s) => s.id === initSeasonId);
+      if (season) filters.push({ id: 'plantingSeasonName', value: [season.name] });
+    }
+    if (initSiteId !== 'all') {
+      const site = plantingSites.find((s) => s.id === initSiteId);
+      if (site) filters.push({ id: 'plantingSiteName', value: [site.name] });
+    }
+    if (initSpeciesId !== 'all') {
+      const sp = speciesList.find((s) => s.id === initSpeciesId);
+      if (sp) filters.push({ id: 'speciesScientific', value: [sp.scientificName] });
+    }
+    return filters;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const columns = useMemo<MRT_ColumnDef<WithdrawalRow>[]>(() => [
+    {
+      accessorKey: 'dateDisplay',
+      header: 'Date',
+      enableColumnFilter: false,
+      size: 120,
+      Cell: ({ cell }) => (
+        <Typography variant="body2" sx={{ color: PRIMARY_GREEN }}>
+          {cell.getValue<string>()}
+        </Typography>
+      ),
+    },
+    {
+      accessorKey: 'purpose',
+      header: 'Purpose',
+      size: 130,
+      filterVariant: 'select',
+      filterSelectOptions: ['Planting', 'Nursery Transfer', 'Dead', 'Other'],
+    },
+    {
+      accessorKey: 'nurseryName',
+      header: 'From: Nursery',
+      size: 140,
+      filterVariant: 'select',
+      filterSelectOptions: [...new Set(mockWithdrawals.map((w) => w.nurseryName))],
+    },
+    {
+      accessorKey: 'plantingSiteName',
+      header: 'Planting Site',
+      filterVariant: 'multi-select',
+      filterSelectOptions: [...new Set(mockWithdrawals.map((w) => w.plantingSiteName))],
+    },
+    {
+      accessorKey: 'plantingSeasonName',
+      header: 'Planting Season',
+      filterVariant: 'multi-select',
+      filterSelectOptions: [...new Set(nurseryPlanningSeasons.map((s) => s.name))],
+    },
+    {
+      accessorKey: 'stratumName',
+      header: 'To: Stratum',
+      filterVariant: 'multi-select',
+      filterSelectOptions: strata.map((s) => s.name),
+    },
+    {
+      accessorKey: 'substratumName',
+      header: 'To: Substratum',
+      filterVariant: 'multi-select',
+      filterSelectOptions: substrata.map((s) => s.name),
+    },
+    {
+      accessorKey: 'speciesScientific',
+      header: 'Species',
+      filterVariant: 'multi-select',
+      filterSelectOptions: [...new Set(tableData.map((r) => r.speciesScientific))],
+      Cell: ({ row }) => (
+        <>
+          <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
+            {row.original.speciesScientific}
+          </Typography>
+          <Typography variant="caption" sx={{ color: TEXT_SECONDARY }}>
+            {row.original.speciesCommon}
+          </Typography>
+        </>
+      ),
+    },
+    {
+      accessorKey: 'quantity',
+      header: 'Total Quantity',
+      enableColumnFilter: false,
+      size: 110,
+      muiTableHeadCellProps: { align: 'right' },
+      muiTableBodyCellProps: { align: 'right' },
+      Cell: ({ cell }) => (
+        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+          {cell.getValue<number>().toLocaleString()}
+        </Typography>
+      ),
+    },
+  ], [tableData]);
+
+  const table = useMaterialReactTable({
+    columns,
+    data: tableData,
+    initialState: {
+      density: 'compact',
+      showColumnFilters: initialColumnFilters.length > 0,
+      columnFilters: initialColumnFilters,
+      sorting: [{ id: 'dateDisplay', desc: false }],
+    },
+    enableColumnFilters: true,
+    enableGlobalFilter: true,
+    muiSearchTextFieldProps: { placeholder: 'Search withdrawals…', size: 'small' },
+    muiTablePaperProps: {
+      sx: { border: `1px solid ${BORDER_COLOR}`, borderRadius: 1, boxShadow: 'none' },
+    },
+    muiTableHeadRowProps: { sx: { bgcolor: HEADER_BG } },
+    muiTableHeadCellProps: {
+      sx: { fontWeight: 600, color: TEXT_PRIMARY, borderBottom: `1px solid ${BORDER_COLOR}` },
+    },
+    muiTableBodyCellProps: { sx: { borderBottom: `1px solid ${BORDER_COLOR}` } },
+    muiFilterTextFieldProps: { size: 'small' },
+    renderTopToolbarCustomActions: () => (
+      <Typography variant="h5" sx={{ fontWeight: 600, color: TEXT_PRIMARY, alignSelf: 'center', pl: 1 }}>
+        Withdrawals
+      </Typography>
+    ),
+    onColumnFiltersChange: () => {
+      // Clear URL params when user manually changes filters
+      setSearchParams(new URLSearchParams());
+    },
+  });
+
+  return <MaterialReactTable table={table} />;
+}
+
+// --- Calendar / Gantt view ---
+
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function CalendarView({
+  seasons,
+  seasonStratumTargets,
+  onViewSeason,
+  onUpdateSeason,
+  onDeleteSeason,
+}: {
+  seasons: Season[];
+  seasonStratumTargets: Record<string, StratumTarget[]>;
+  onViewSeason: (season: Season) => void;
+  onUpdateSeason: (updated: Season) => void;
+  onDeleteSeason: (id: string) => void;
+}) {
+  const TODAY = new Date();
+
+  // Compute distinct years that have at least one overlapping season, sorted descending
+  const allYears = [...new Set(
+    seasons.flatMap((s) => {
+      const startY = new Date(s.startDate + 'T00:00').getFullYear();
+      const endY = new Date(s.endDate + 'T00:00').getFullYear();
+      const ys: number[] = [];
+      for (let y = startY; y <= endY; y++) ys.push(y);
+      return ys;
+    })
+  )].sort((a, b) => b - a); // descending
+
+  const defaultYear = allYears.includes(TODAY.getFullYear())
+    ? TODAY.getFullYear()
+    : (allYears[0] ?? TODAY.getFullYear());
+
+  const [selectedYear, setSelectedYear] = useState(defaultYear);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Season | null>(null);
+  const [popoverAnchor, setPopoverAnchor] = useState<HTMLElement | null>(null);
+  const [popoverSeasonId, setPopoverSeasonId] = useState<string | null>(null);
+
+  if (seasons.length === 0) {
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 10, bgcolor: '#fff', borderRadius: '8px', border: `1px solid ${BORDER_COLOR}` }}>
+        <Typography variant="body1" sx={{ color: TEXT_SECONDARY }}>
+          No planting seasons found
+        </Typography>
+      </Box>
+    );
+  }
+
+  // Year boundaries (fixed 12-month window)
+  const yearStart = new Date(selectedYear, 0, 1).getTime();
+  const yearEnd   = new Date(selectedYear, 12, 1).getTime(); // Jan 1 next year
+  const totalMs   = yearEnd - yearStart;
+
+  // Seasons that overlap with the selected year (sorted descending by start)
+  const sorted = [...seasons]
+    .filter((s) => {
+      const sStart = new Date(s.startDate + 'T00:00').getFullYear();
+      const sEnd   = new Date(s.endDate   + 'T00:00').getFullYear();
+      return sStart <= selectedYear && sEnd >= selectedYear;
+    })
+    .sort((a, b) => b.startDate.localeCompare(a.startDate));
+
+  // Bar bounds clipped to the selected year's [0%, 100%]
+  const getBarBounds = (season: Season) => {
+    const rawStart = new Date(season.startDate + 'T00:00').getTime();
+    const rawEnd   = new Date(season.endDate   + 'T00:00').getTime();
+    const clampedStart = Math.max(rawStart, yearStart);
+    const clampedEnd   = Math.min(rawEnd,   yearEnd);
+    const left  = ((clampedStart - yearStart) / totalMs) * 100;
+    const width = ((clampedEnd   - clampedStart) / totalMs) * 100;
+    return { left: Math.max(0, left), width: Math.max(0, width) };
+  };
+
+  return (
+    <Box sx={{ bgcolor: '#fff', borderRadius: 1, border: `1px solid ${BORDER_COLOR}`, overflow: 'hidden' }}>
+      {/* Year tabs */}
+      <Tabs
+        value={selectedYear}
+        onChange={(_, v) => setSelectedYear(v as number)}
+        sx={{ borderBottom: `1px solid ${BORDER_COLOR}`, minHeight: 36, px: 2 }}
+        TabIndicatorProps={{ sx: { bgcolor: PRIMARY_GREEN } }}
+      >
+        {allYears.map((yr) => (
+          <Tab
+            key={yr}
+            value={yr}
+            label={String(yr)}
+            sx={{
+              textTransform: 'none',
+              minHeight: 36,
+              fontWeight: selectedYear === yr ? 600 : 400,
+              color: selectedYear === yr ? PRIMARY_GREEN : TEXT_SECONDARY,
+              '&.Mui-selected': { color: PRIMARY_GREEN },
+            }}
+          />
+        ))}
+      </Tabs>
+
+      <Box sx={{ overflowX: 'auto', p: 2 }}>
+        <Box sx={{ minWidth: 800 }}>
+          {/* Fixed 12-month header */}
+          <Box sx={{ display: 'flex', ml: '280px', borderBottom: `1px solid ${BORDER_COLOR}`, mb: 2 }}>
+            {MONTHS_SHORT.map((label, i) => {
+              const isCurrentMonth = TODAY.getFullYear() === selectedYear && TODAY.getMonth() === i;
+              return (
+                <Box
+                  key={i}
+                  sx={{
+                    flex: 1,
+                    textAlign: 'center',
+                    py: 0.5,
+                    borderRight: i < 11 ? `1px solid ${BORDER_COLOR}` : 'none',
+                    bgcolor: isCurrentMonth ? '#F0F7F3' : 'transparent',
+                  }}
+                >
+                  <Typography variant="caption" sx={{ color: isCurrentMonth ? PRIMARY_GREEN : TEXT_SECONDARY, fontSize: '0.7rem', fontWeight: isCurrentMonth ? 700 : 400 }}>
+                    {label}
+                  </Typography>
+                </Box>
+              );
+            })}
+          </Box>
+
+          {/* Empty state */}
+          {sorted.length === 0 && (
+            <Box sx={{ py: 6, textAlign: 'center' }}>
+              <Typography variant="body2" sx={{ color: TEXT_SECONDARY }}>
+                No planting seasons in {selectedYear}
+              </Typography>
+            </Box>
+          )}
+
+          {/* Season rows */}
+          {sorted.map((season) => {
+            const isArchived = !season.forceActive && !isSeasonActive(season.startDate, season.endDate) &&
+              season.endDate && new Date(season.endDate + 'T23:59:59') < TODAY;
+            const isActive = season.forceActive || isSeasonActive(season.startDate, season.endDate);
+            const { left, width } = getBarBounds(season);
+            const targets = seasonStratumTargets[season.id] ?? [];
+            const totalGoal = targets.reduce((s, t) => s + t.target, 0);
+            const totalPlanted = targets.reduce((s, t) => s + t.withdrawn, 0);
+            const progress = totalGoal > 0 ? Math.min((totalPlanted / totalGoal) * 100, 100) : 0;
+            const progressBarColor = progress >= 80 ? '#4CAF50' : progress >= 41 ? '#FF9800' : '#F44336';
+
+            const barBg = isArchived ? '#E8E6E1' : isActive ? '#DEE5D9' : '#EBF2DB';
+            const barBorder = isActive ? '#5C832B' : BORDER_COLOR;
+
+            return (
+              <Box
+                key={season.id}
+                onMouseEnter={() => setHoveredId(season.id)}
+                onMouseLeave={() => setHoveredId(null)}
+                sx={{
+                  display: 'flex',
+                  mb: 3,
+                  opacity: isArchived ? 0.72 : 1,
+                  pb: 2,
+                  borderBottom: `1px solid ${BORDER_COLOR}`,
+                  '&:last-child': { borderBottom: 'none', mb: 0, pb: 0 },
+                }}
+              >
+                {/* Left label — always shows name, dates, Manage button */}
+                <Box sx={{ width: 280, flexShrink: 0, pr: 2.5, display: 'flex', flexDirection: 'column', gap: 1, pt: 0.5 }}>
+                  <CalendarSeasonLabel
+                    season={season}
+                    onUpdate={onUpdateSeason}
+                    isArchived={isArchived ?? false}
+                    isActive={isActive}
+                  />
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'nowrap' }}>
+                    <Box sx={{ flexShrink: 0 }}>
+                      <Button
+                        label="Manage Planting Season"
+                        onClick={() => onViewSeason(season)}
+                        priority="secondary"
+                      />
+                    </Box>
+                    <IconButton
+                      size="small"
+                      onClick={(e) => { e.stopPropagation(); setDeleteTarget(season); }}
+                      sx={{ color: TEXT_SECONDARY, '&:hover': { color: '#757575' }, flexShrink: 0 }}
+                    >
+                      <DeleteIcon sx={{ fontSize: 18 }} />
+                    </IconButton>
+                  </Box>
+                </Box>
+
+                {/* Timeline + metrics */}
+                <Box sx={{ flex: 1, position: 'relative' }}>
+                  {/* Bar */}
+                  <Box sx={{ position: 'relative', height: 40, mb: 1.5 }}>
+                    <Box
+                      onMouseEnter={(e) => { setPopoverAnchor(e.currentTarget); setPopoverSeasonId(season.id); }}
+                      onMouseLeave={() => { setPopoverAnchor(null); setPopoverSeasonId(null); }}
+                      sx={{
+                        position: 'absolute',
+                        left: `${left}%`,
+                        width: `${width}%`,
+                        height: '100%',
+                        bgcolor: barBg,
+                        border: `1px solid ${barBorder}`,
+                        borderRadius: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                        px: 1.5,
+                        overflow: 'hidden',
+                        minWidth: 60,
+                      }}
+                    >
+                      {isActive && (
+                        <Chip label="Active" size="small" sx={{ bgcolor: '#EBF2DB', color: '#5C832B', border: '1px solid #5C832B', height: 20, fontSize: '0.65rem', fontWeight: 600, flexShrink: 0 }} />
+                      )}
+                      {isArchived && (
+                        <Chip label="Archived" size="small" sx={{ bgcolor: '#F5F5F5', color: TEXT_SECONDARY, border: `1px solid ${BORDER_COLOR}`, height: 20, fontSize: '0.65rem', flexShrink: 0 }} />
+                      )}
+                      <Typography variant="caption" sx={{ color: TEXT_SECONDARY, fontSize: '0.7rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {formatDateRange(season.startDate, season.endDate)}
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  {/* Metrics below bar */}
+                  <Box sx={{ position: 'relative' }}>
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        left: `${left}%`,
+                        width: `${Math.min(width, 100 - left)}%`,
+                        display: 'flex',
+                        gap: 2.5,
+                        alignItems: 'flex-start',
+                      }}
+                    >
+                      <Box sx={{ minWidth: 110 }}>
+                        <Typography sx={{ fontSize: '0.68rem', color: TEXT_SECONDARY, mb: '3px' }}>Progress</Typography>
+                        <LinearProgress
+                          variant="determinate"
+                          value={progress}
+                          sx={{
+                            height: 8, borderRadius: 4, bgcolor: '#E3E1D9',
+                            '& .MuiLinearProgress-bar': { bgcolor: progressBarColor, borderRadius: 4 },
+                          }}
+                        />
+                      </Box>
+                      <Box>
+                        <Typography sx={{ fontSize: '0.68rem', color: TEXT_SECONDARY }}>Planted Goal</Typography>
+                        <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: TEXT_PRIMARY }}>{totalGoal.toLocaleString()}</Typography>
+                      </Box>
+                      <Box>
+                        <Typography sx={{ fontSize: '0.68rem', color: TEXT_SECONDARY }}>Total Planted</Typography>
+                        <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: TEXT_PRIMARY }}>{totalPlanted.toLocaleString()}</Typography>
+                      </Box>
+                    </Box>
+                    <Box sx={{ height: 48 }} />
+                  </Box>
+                </Box>
+              </Box>
+            );
+          })}
+        </Box>
+      </Box>
+
+      {/* Strata & Substrata hover popover */}
+      <Popover
+        open={Boolean(popoverAnchor) && Boolean(popoverSeasonId)}
+        anchorEl={popoverAnchor}
+        onClose={() => { setPopoverAnchor(null); setPopoverSeasonId(null); }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+        disableRestoreFocus
+        sx={{ pointerEvents: 'none' }}
+        slotProps={{ paper: { sx: { p: 2, minWidth: 200, maxWidth: 340, boxShadow: '0 4px 12px rgba(0,0,0,0.12)' } } }}
+      >
+        {(() => {
+          if (!popoverSeasonId) return null;
+          const targets = seasonStratumTargets[popoverSeasonId] ?? [];
+          const activeSubIds = [...new Set(targets.filter((t) => t.target > 0).map((t) => t.stratumId))];
+          const activeParentIds = [...new Set(
+            substrata.filter((sub) => activeSubIds.includes(sub.id)).map((sub) => sub.stratumId)
+          )];
+          const activeStrata = strata.filter((st) => activeParentIds.includes(st.id));
+          const activeSubs = substrata.filter((sub) => activeSubIds.includes(sub.id));
+          if (activeStrata.length === 0 && activeSubs.length === 0) {
+            return <Typography variant="body2" sx={{ color: TEXT_SECONDARY }}>No strata assigned</Typography>;
+          }
+          return (
+            <>
+              {activeStrata.length > 0 && (
+                <Box sx={{ mb: activeSubs.length > 0 ? 1.5 : 0 }}>
+                  <Typography variant="caption" sx={{ color: TEXT_SECONDARY, fontWeight: 600, display: 'block', mb: 0.75, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.65rem' }}>
+                    Strata
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
+                    {activeStrata.map((st) => (
+                      <Chip key={st.id} label={st.name} size="small" sx={{ bgcolor: '#EBF2DB', color: '#5C832B', fontSize: '0.75rem', height: 24 }} />
+                    ))}
+                  </Box>
+                </Box>
+              )}
+              {activeSubs.length > 0 && (
+                <Box>
+                  <Typography variant="caption" sx={{ color: TEXT_SECONDARY, fontWeight: 600, display: 'block', mb: 0.75, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.65rem' }}>
+                    Substrata
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
+                    {activeSubs.map((sub) => (
+                      <Chip key={sub.id} label={sub.name} size="small" sx={{ bgcolor: '#F2F0EE', color: '#7F785C', fontSize: '0.75rem', height: 24 }} />
+                    ))}
+                  </Box>
+                </Box>
+              )}
+            </>
+          );
+        })()}
+      </Popover>
+
+      {/* Delete confirmation dialog */}
+      {deleteTarget && (
+        <DialogBox
+          open={Boolean(deleteTarget)}
+          onClose={() => setDeleteTarget(null)}
+          title={
+            deleteTarget.forceActive || isSeasonActive(deleteTarget.startDate, deleteTarget.endDate)
+              ? 'Delete Active Season?'
+              : 'Delete Season?'
+          }
+          size="medium"
+          scrolled
+          middleButtons={[
+            <Button key="cancel" label="Cancel" onClick={() => setDeleteTarget(null)} priority="secondary" />,
+            <Button
+              key="delete"
+              label="Delete"
+              onClick={() => {
+                onDeleteSeason(deleteTarget.id);
+                setDeleteTarget(null);
+              }}
+            />,
+          ]}
+        >
+          <Typography variant="body2" sx={{ color: TEXT_PRIMARY }}>
+            Are you sure you want to delete <strong>{deleteTarget.name}</strong>? This cannot be undone.
+          </Typography>
+        </DialogBox>
+      )}
+    </Box>
+  );
+}
+
+// Inline label with editable name and dates for the calendar row
+function CalendarSeasonLabel({
+  season,
+  onUpdate,
+  isArchived,
+  isActive,
+}: {
+  season: Season;
+  onUpdate: (updated: Season) => void;
+  isArchived: boolean;
+  isActive: boolean;
+}) {
+  const [editingName, setEditingName] = useState(false);
+  const [editingDates, setEditingDates] = useState(false);
+  const [draftName, setDraftName] = useState(season.name);
+  const [draftStart, setDraftStart] = useState(season.startDate);
+  const [draftEnd, setDraftEnd] = useState(season.endDate);
+
+  const commitName = () => {
+    if (draftName.trim()) onUpdate({ ...season, name: draftName.trim() });
+    else setDraftName(season.name);
+    setEditingName(false);
+  };
+
+  const commitDates = () => {
+    onUpdate({ ...season, startDate: draftStart, endDate: draftEnd });
+    setEditingDates(false);
+  };
+
+  return (
+    <Box>
+      {editingName ? (
+        <TextField
+          value={draftName}
+          onChange={(e) => setDraftName(e.target.value)}
+          onBlur={commitName}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commitName();
+            if (e.key === 'Escape') { setDraftName(season.name); setEditingName(false); }
+          }}
+          autoFocus
+          size="small"
+          sx={{ width: 160 }}
+        />
+      ) : (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: isArchived ? TEXT_SECONDARY : TEXT_PRIMARY }}>
+            {season.name}
+          </Typography>
+          <IconButton size="small" onClick={() => { setDraftName(season.name); setEditingName(true); }} sx={{ color: TEXT_SECONDARY, p: '2px' }}>
+            <EditIcon sx={{ fontSize: 13 }} />
+          </IconButton>
+        </Box>
+      )}
+      {editingDates ? (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 0.5 }}>
+          <TextField type="date" value={draftStart} onChange={(e) => setDraftStart(e.target.value)} size="small" slotProps={{ inputLabel: { shrink: true } }} sx={{ width: 155 }} />
+          <TextField
+            type="date"
+            value={draftEnd}
+            onChange={(e) => setDraftEnd(e.target.value)}
+            onBlur={commitDates}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitDates();
+              if (e.key === 'Escape') { setDraftStart(season.startDate); setDraftEnd(season.endDate); setEditingDates(false); }
+            }}
+            size="small"
+            slotProps={{ inputLabel: { shrink: true } }}
+            sx={{ width: 155 }}
+          />
+        </Box>
+      ) : (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Typography sx={{ fontSize: '0.7rem', color: TEXT_SECONDARY }}>
+            {isActive ? 'Active' : isArchived ? 'Archived' : 'Upcoming'}
+          </Typography>
+          <IconButton size="small" onClick={() => { setDraftStart(season.startDate); setDraftEnd(season.endDate); setEditingDates(true); }} sx={{ color: TEXT_SECONDARY, p: '1px' }}>
+            <EditIcon sx={{ fontSize: 11 }} />
+          </IconButton>
+        </Box>
+      )}
     </Box>
   );
 }
 
 // --- Main component ---
 
-export function PlantingSeasons() {
+export function PlantingSeasons({ initialSeasonId }: { initialSeasonId?: string } = {}) {
+  const navigate = useNavigate();
+  const initialSeason = initialSeasonId
+    ? nurseryPlanningSeasons.find((s) => s.id === initialSeasonId) ?? null
+    : null;
+
+  const { plantingNotification, dismissPlantingNotification } = usePlanningContext();
   const [activeTab, setActiveTab] = useState(1); // 0 = Progress, 1 = Seasons
-  const [selectedSiteId, setSelectedSiteId] = useState('site1');
-  const [seasons, setSeasons] = useState<Season[]>([
-    { id: 'season-active', name: 'Mar - Oct 2026',    startDate: '2026-03-01', endDate: '2026-10-31' },
-    { id: 'season-future', name: 'Nov - Mar 2026-27', startDate: '2026-11-12', endDate: '2027-03-23', forceActive: true },
-    { id: 'season-2024',   name: 'Feb - Nov 2024',    startDate: '2024-02-01', endDate: '2024-11-30' },
-    { id: 'season-2023',   name: 'Mar - Oct 2023',    startDate: '2023-03-01', endDate: '2023-10-31' },
-    { id: 'season-2022',   name: 'Apr - Sep 2022',    startDate: '2022-04-01', endDate: '2022-09-30' },
-  ]);
+  const [selectedSiteId, setSelectedSiteId] = useState(initialSeason?.siteId ?? 'all');
+  const [allSeasons, setAllSeasons] = useState<Season[]>(() =>
+    nurseryPlanningSeasons.map((s) => ({ ...s }))
+  );
+  const seasons = selectedSiteId === 'all' ? allSeasons : allSeasons.filter((s) => s.siteId === selectedSiteId);
   // Stratum targets per season — lifted from ViewPlantingSeasonView so changes reflect in cards
   const [seasonStratumTargets, setSeasonStratumTargets] = useState<Record<string, StratumTarget[]>>(
-    () => ({
-      'season-active': makeInitialStratumTargets(),
-      'season-future': makeInitialStratumTargets(),
-      'season-2024':   makeInitialStratumTargets(),
-      'season-2023':   makeInitialStratumTargets(),
-      'season-2022':   makeInitialStratumTargets(),
-    })
+    () => Object.fromEntries(nurseryPlanningSeasons.map((s) => [s.id, makeInitialStratumTargets()]))
   );
+  const [progressFilterSubstratumId, setProgressFilterSubstratumId] = useState<string | undefined>(undefined);
   const [showPastSeasons, setShowPastSeasons] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newSeasonName, setNewSeasonName] = useState('');
   const [newStartDate, setNewStartDate] = useState('');
   const [newEndDate, setNewEndDate] = useState('');
-  const [viewingSeason, setViewingSeason] = useState<Season | null>(null);
+  const [viewingSeason, setViewingSeason] = useState<Season | null>(initialSeason);
 
   const handleCreateSeason = () => {
     if (!newSeasonName.trim()) return;
     const newId = `season-${Date.now()}`;
-    setSeasons((prev) => [
-      ...prev,
-      { id: newId, name: newSeasonName.trim(), startDate: newStartDate, endDate: newEndDate },
-    ]);
+    const newSeason: Season = {
+      id: newId,
+      name: newSeasonName.trim(),
+      startDate: newStartDate,
+      endDate: newEndDate,
+      siteId: selectedSiteId,
+    };
+    setAllSeasons((prev) => [...prev, newSeason]);
     setSeasonStratumTargets((prev) => ({ ...prev, [newId]: [] }));
     setNewSeasonName('');
     setNewStartDate('');
     setNewEndDate('');
     setCreateDialogOpen(false);
+    setViewingSeason(newSeason);
   };
 
   const handleCloseDialog = () => {
@@ -806,6 +2312,15 @@ export function PlantingSeasons() {
         onStratumTargetsChange={(targets) =>
           setSeasonStratumTargets((prev) => ({ ...prev, [viewingSeason.id]: targets }))
         }
+        onSeasonUpdate={(updated) => {
+          setAllSeasons((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+          setViewingSeason(updated);
+        }}
+        onNavigateToProgress={({ substratumId, speciesId, seasonId, siteId }) => {
+          const params = new URLSearchParams({ purpose: 'Planting', substratumId, seasonId, siteId });
+          if (speciesId) params.set('speciesId', speciesId);
+          navigate(`withdrawal-log?${params.toString()}`);
+        }}
       />
     );
   }
@@ -826,6 +2341,7 @@ export function PlantingSeasons() {
           onChange={(e) => setSelectedSiteId(e.target.value)}
           sx={{ minWidth: 200 }}
         >
+          <MenuItem value="all">All Planting Sites</MenuItem>
           {plantingSites.map((site) => (
             <MenuItem key={site.id} value={site.id}>
               {site.name}
@@ -835,6 +2351,16 @@ export function PlantingSeasons() {
         <Box sx={{ flex: 1 }} />
         <Button label="Add Planting Season" onClick={() => setCreateDialogOpen(true)} />
       </Box>
+
+      {plantingNotification && (
+        <Alert
+          severity="info"
+          onClose={dismissPlantingNotification}
+          sx={{ mb: 2, bgcolor: '#E8F5E9', color: '#1B5E20', border: '1px solid #A5D6A7', '& .MuiAlert-icon': { color: '#2E7D32' } }}
+        >
+          Allocation numbers have been updated in Nursery Planning.
+        </Alert>
+      )}
 
       {/* Tabs */}
       <Tabs
@@ -849,118 +2375,21 @@ export function PlantingSeasons() {
 
       {/* Planting Seasons tab */}
       {activeTab === 1 && (
-        <>
-          {seasons.length === 0 ? (
-            <Box
-              sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                py: 10,
-                bgcolor: '#fff',
-                borderRadius: '8px',
-                border: `1px solid ${BORDER_COLOR}`,
-              }}
-            >
-              <Typography variant="body1" sx={{ color: TEXT_SECONDARY, mb: 3 }}>
-                You have not set up any planting seasons
-              </Typography>
-              <Button label="Add Planting Season" onClick={() => setCreateDialogOpen(true)} />
-            </Box>
-          ) : (() => {
-            const today = new Date();
-            const activeSeasons = seasons.filter(
-              (s) => s.forceActive || isSeasonActive(s.startDate, s.endDate)
-            );
-            const upcomingSeasons = seasons.filter(
-              (s) =>
-                !s.forceActive &&
-                !isSeasonActive(s.startDate, s.endDate) &&
-                s.startDate &&
-                new Date(s.startDate + 'T00:00:00') > today
-            );
-            const pastSeasons = seasons.filter(
-              (s) =>
-                !s.forceActive &&
-                !isSeasonActive(s.startDate, s.endDate) &&
-                s.endDate &&
-                new Date(s.endDate + 'T23:59:59') < today
-            );
-            const updateSeason = (updated: Season) =>
-              setSeasons((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
-            return (
-              <>
-                {activeSeasons.map((season) => (
-                  <SeasonCard
-                    key={season.id}
-                    season={season}
-                    onViewSeason={() => setViewingSeason(season)}
-                    onUpdate={updateSeason}
-                    stratumTargets={seasonStratumTargets[season.id] ?? []}
-                  />
-                ))}
-
-                {upcomingSeasons.map((season) => (
-                  <SeasonCard
-                    key={season.id}
-                    season={season}
-                    onViewSeason={() => setViewingSeason(season)}
-                    onUpdate={updateSeason}
-                    stratumTargets={seasonStratumTargets[season.id] ?? []}
-                  />
-                ))}
-
-                {pastSeasons.length > 0 && (
-                  <Box>
-                    <Box
-                      onClick={() => setShowPastSeasons((v) => !v)}
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 0.5,
-                        cursor: 'pointer',
-                        py: 1,
-                        mb: 1,
-                        borderTop: `1px solid ${BORDER_COLOR}`,
-                        userSelect: 'none',
-                      }}
-                    >
-                      {showPastSeasons ? (
-                        <ExpandLessIcon sx={{ fontSize: 18, color: TEXT_SECONDARY }} />
-                      ) : (
-                        <ExpandMoreIcon sx={{ fontSize: 18, color: TEXT_SECONDARY }} />
-                      )}
-                      <Typography variant="body2" sx={{ color: TEXT_SECONDARY, fontWeight: 500 }}>
-                        Past Seasons ({pastSeasons.length})
-                      </Typography>
-                    </Box>
-                    <Collapse in={showPastSeasons}>
-                      {pastSeasons.map((season) => (
-                        <SeasonCard
-                          key={season.id}
-                          season={season}
-                          onViewSeason={() => setViewingSeason(season)}
-                          onUpdate={updateSeason}
-                          archived
-                          stratumTargets={seasonStratumTargets[season.id] ?? []}
-                        />
-                      ))}
-                    </Collapse>
-                  </Box>
-                )}
-              </>
-            );
-          })()}
-        </>
+        <CalendarView
+          seasons={seasons}
+          seasonStratumTargets={seasonStratumTargets}
+          onViewSeason={(season) => setViewingSeason(season)}
+          onUpdateSeason={(updated) => setAllSeasons((prev) => prev.map((s) => (s.id === updated.id ? updated : s)))}
+          onDeleteSeason={(id) => setAllSeasons((prev) => prev.filter((s) => s.id !== id))}
+        />
       )}
 
-      {/* Planting Progress tab — placeholder */}
+      {/* Planting Progress tab */}
       {activeTab === 0 && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-          <Typography variant="body1" sx={{ color: TEXT_SECONDARY }}>
-            Planting Progress coming soon
-          </Typography>
-        </Box>
+        <PlantingProgressView
+          withdrawals={mockWithdrawals}
+          defaultSubstratumId={progressFilterSubstratumId}
+        />
       )}
 
       {/* Create Season Dialog */}
@@ -974,7 +2403,7 @@ export function PlantingSeasons() {
           <Button key="cancel" label="Cancel" onClick={handleCloseDialog} priority="secondary" />,
           <Button
             key="save"
-            label="Save"
+            label="Next"
             onClick={handleCreateSeason}
             disabled={!newSeasonName.trim()}
           />,

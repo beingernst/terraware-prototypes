@@ -18,22 +18,29 @@ export interface PlantingSite {
   name: string;
 }
 
-export interface NeedByDate {
-  id: string;
-  label: string;
-}
-
-export interface SiteAllocation {
-  speciesId: string;
-  siteId: string;
-  allocated: number;
-  target: number;
-}
-
 export interface NurserySpeciesInventory {
   speciesId: string;
   nurseryId: string;
   quantity: number;
+}
+
+// --- Planting Seasons (each season belongs to one Planting Site) ---
+
+export interface NurseryPlanningSeason {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  siteId: string;
+}
+
+// --- Species × Season targets and allocations ---
+
+export interface SiteSeasonTarget {
+  speciesId: string;
+  seasonId: string; // season already carries siteId
+  target: number;
+  allocated: number;
 }
 
 // --- Mock Data ---
@@ -65,223 +72,151 @@ export const plantingSites: PlantingSite[] = [
   { id: 'ps5', name: 'Kahua Ranch' },
 ];
 
-export const needByDates: NeedByDate[] = [
-  { id: 'nbd1', label: 'Mar 15, 2026' },
-  { id: 'nbd2', label: 'Jun 1, 2026' },
-  { id: 'nbd3', label: 'Nov 1, 2026' },
+// Each Planting Site has its own seasons (different schedules per site).
+// Seasons are sorted by startDate ascending.
+export const nurseryPlanningSeasons: NurseryPlanningSeason[] = [
+  // Pu'u Wa'awa'a (ps1) — 3 seasons
+  { id: 'ps1-s1', name: 'Season 2024', startDate: '2024-02-01', endDate: '2024-10-31', siteId: 'ps1' },
+  { id: 'ps1-s2', name: 'Season 2026', startDate: '2026-03-01', endDate: '2026-10-31', siteId: 'ps1' },
+  { id: 'ps1-s3', name: 'Season 2027', startDate: '2027-02-01', endDate: '2027-10-31', siteId: 'ps1' },
+
+  // Mauna Meadows (ps2) — 3 seasons
+  { id: 'ps2-s1', name: 'Season 2025', startDate: '2025-04-01', endDate: '2025-11-30', siteId: 'ps2' },
+  { id: 'ps2-s2', name: 'Season 2026', startDate: '2026-11-01', endDate: '2027-03-31', siteId: 'ps2' },
+  { id: 'ps2-s3', name: 'Season 2027', startDate: '2027-11-01', endDate: '2028-03-31', siteId: 'ps2' },
+
+  // Ocean View Lands (ps3) — 2 seasons
+  { id: 'ps3-s1', name: 'Season 2025', startDate: '2025-06-01', endDate: '2025-12-31', siteId: 'ps3' },
+  { id: 'ps3-s2', name: 'Season 2027', startDate: '2027-05-01', endDate: '2027-12-31', siteId: 'ps3' },
+
+  // Lapakahi (ps4) — 2 seasons
+  { id: 'ps4-s1', name: 'Season 2026', startDate: '2026-04-01', endDate: '2026-11-30', siteId: 'ps4' },
+  { id: 'ps4-s2', name: 'Season 2027', startDate: '2027-04-01', endDate: '2027-11-30', siteId: 'ps4' },
+
+  // Kahua Ranch (ps5) — 1 season
+  { id: 'ps5-s1', name: 'Season 2027', startDate: '2027-03-01', endDate: '2027-10-31', siteId: 'ps5' },
 ];
 
-export const initialSiteAllocations: SiteAllocation[] = [
-  // sp1 A'ali'i — fulfilled (total target 500, inventory 600)
-  { speciesId: 'sp1', siteId: 'ps1', allocated: 200, target: 200 },
-  { speciesId: 'sp1', siteId: 'ps2', allocated: 150, target: 150 },
-  { speciesId: 'sp1', siteId: 'ps3', allocated: 100, target: 100 },
-  { speciesId: 'sp1', siteId: 'ps4', allocated: 50, target: 50 },
-  { speciesId: 'sp1', siteId: 'ps5', allocated: 0, target: 0 },
+// Species × Season targets and allocations.
+// Past seasons (pre-2026) are fully allocated; active and future seasons are partially or unallocated.
+export const siteSeasonTargets: SiteSeasonTarget[] = [
+  // --- sp1 A'ali'i (inventory 600) ---
+  { speciesId: 'sp1', seasonId: 'ps1-s1', target: 200, allocated: 200 }, // past — fulfilled
+  { speciesId: 'sp1', seasonId: 'ps1-s2', target: 150, allocated: 120 },
+  { speciesId: 'sp1', seasonId: 'ps1-s3', target: 180, allocated: 0 },
+  { speciesId: 'sp1', seasonId: 'ps2-s1', target: 100, allocated: 100 }, // past — fulfilled
+  { speciesId: 'sp1', seasonId: 'ps2-s2', target: 120, allocated: 80 },
+  { speciesId: 'sp1', seasonId: 'ps4-s1', target: 50, allocated: 30 },
 
-  // sp2 'Aweoweo — partial (target 400, inventory 250)
-  { speciesId: 'sp2', siteId: 'ps1', allocated: 100, target: 150 },
-  { speciesId: 'sp2', siteId: 'ps2', allocated: 80, target: 100 },
-  { speciesId: 'sp2', siteId: 'ps3', allocated: 50, target: 80 },
-  { speciesId: 'sp2', siteId: 'ps4', allocated: 20, target: 40 },
-  { speciesId: 'sp2', siteId: 'ps5', allocated: 0, target: 30 },
+  // --- sp2 'Aweoweo (inventory 250) ---
+  { speciesId: 'sp2', seasonId: 'ps1-s2', target: 150, allocated: 100 },
+  { speciesId: 'sp2', seasonId: 'ps2-s2', target: 100, allocated: 60 },
+  { speciesId: 'sp2', seasonId: 'ps3-s2', target: 80, allocated: 0 },
+  { speciesId: 'sp2', seasonId: 'ps4-s1', target: 40, allocated: 20 },
 
-  // sp3 Pili — gap (target 300, inventory 80)
-  { speciesId: 'sp3', siteId: 'ps1', allocated: 30, target: 100 },
-  { speciesId: 'sp3', siteId: 'ps2', allocated: 20, target: 80 },
-  { speciesId: 'sp3', siteId: 'ps3', allocated: 15, target: 60 },
-  { speciesId: 'sp3', siteId: 'ps4', allocated: 10, target: 40 },
-  { speciesId: 'sp3', siteId: 'ps5', allocated: 5, target: 20 },
+  // --- sp3 Pili (inventory 80) ---
+  { speciesId: 'sp3', seasonId: 'ps1-s2', target: 100, allocated: 30 },
+  { speciesId: 'sp3', seasonId: 'ps1-s3', target: 120, allocated: 0 },
+  { speciesId: 'sp3', seasonId: 'ps3-s1', target: 60, allocated: 40 }, // past
+  { speciesId: 'sp3', seasonId: 'ps3-s2', target: 80, allocated: 0 },
 
-  // sp4 Wiliwili — fulfilled
-  { speciesId: 'sp4', siteId: 'ps1', allocated: 80, target: 80 },
-  { speciesId: 'sp4', siteId: 'ps2', allocated: 60, target: 60 },
-  { speciesId: 'sp4', siteId: 'ps3', allocated: 40, target: 40 },
-  { speciesId: 'sp4', siteId: 'ps4', allocated: 20, target: 20 },
-  { speciesId: 'sp4', siteId: 'ps5', allocated: 0, target: 0 },
+  // --- sp4 Wiliwili (inventory 220) ---
+  { speciesId: 'sp4', seasonId: 'ps1-s1', target: 80, allocated: 80 }, // past — fulfilled
+  { speciesId: 'sp4', seasonId: 'ps1-s2', target: 60, allocated: 60 },
+  { speciesId: 'sp4', seasonId: 'ps2-s1', target: 40, allocated: 40 }, // past — fulfilled
+  { speciesId: 'sp4', seasonId: 'ps2-s2', target: 50, allocated: 0 },
 
-  // sp5 Naio — partial
-  { speciesId: 'sp5', siteId: 'ps1', allocated: 60, target: 120 },
-  { speciesId: 'sp5', siteId: 'ps2', allocated: 40, target: 80 },
-  { speciesId: 'sp5', siteId: 'ps3', allocated: 30, target: 60 },
-  { speciesId: 'sp5', siteId: 'ps4', allocated: 0, target: 30 },
-  { speciesId: 'sp5', siteId: 'ps5', allocated: 0, target: 10 },
+  // --- sp5 Naio (inventory 180) ---
+  { speciesId: 'sp5', seasonId: 'ps2-s2', target: 120, allocated: 80 },
+  { speciesId: 'sp5', seasonId: 'ps3-s1', target: 60, allocated: 30 }, // past
+  { speciesId: 'sp5', seasonId: 'ps5-s1', target: 100, allocated: 0 },
 
-  // sp6 'Ilima — over-allocated (target 150, inventory 200, allocated 180)
-  { speciesId: 'sp6', siteId: 'ps1', allocated: 80, target: 60 },
-  { speciesId: 'sp6', siteId: 'ps2', allocated: 60, target: 40 },
-  { speciesId: 'sp6', siteId: 'ps3', allocated: 40, target: 30 },
-  { speciesId: 'sp6', siteId: 'ps4', allocated: 0, target: 20 },
-  { speciesId: 'sp6', siteId: 'ps5', allocated: 0, target: 0 },
+  // --- sp6 'Ilima (inventory 200) ---
+  { speciesId: 'sp6', seasonId: 'ps1-s2', target: 60, allocated: 80 }, // over-allocated
+  { speciesId: 'sp6', seasonId: 'ps2-s2', target: 40, allocated: 60 }, // over-allocated
+  { speciesId: 'sp6', seasonId: 'ps4-s1', target: 20, allocated: 0 },
 
-  // sp7 Ma'o — gap (target 250, inventory 60)
-  { speciesId: 'sp7', siteId: 'ps1', allocated: 20, target: 100 },
-  { speciesId: 'sp7', siteId: 'ps2', allocated: 15, target: 60 },
-  { speciesId: 'sp7', siteId: 'ps3', allocated: 10, target: 40 },
-  { speciesId: 'sp7', siteId: 'ps4', allocated: 10, target: 30 },
-  { speciesId: 'sp7', siteId: 'ps5', allocated: 5, target: 20 },
+  // --- sp7 Ma'o (inventory 60) ---
+  { speciesId: 'sp7', seasonId: 'ps1-s2', target: 100, allocated: 20 },
+  { speciesId: 'sp7', seasonId: 'ps2-s2', target: 60, allocated: 15 },
+  { speciesId: 'sp7', seasonId: 'ps3-s2', target: 40, allocated: 10 },
+  { speciesId: 'sp7', seasonId: 'ps4-s1', target: 30, allocated: 10 },
+  { speciesId: 'sp7', seasonId: 'ps5-s1', target: 20, allocated: 5 },
 
-  // sp8 Koa — fulfilled
-  { speciesId: 'sp8', siteId: 'ps1', allocated: 150, target: 150 },
-  { speciesId: 'sp8', siteId: 'ps2', allocated: 100, target: 100 },
-  { speciesId: 'sp8', siteId: 'ps3', allocated: 50, target: 50 },
-  { speciesId: 'sp8', siteId: 'ps4', allocated: 0, target: 0 },
-  { speciesId: 'sp8', siteId: 'ps5', allocated: 0, target: 0 },
+  // --- sp8 Koa (inventory 320) ---
+  { speciesId: 'sp8', seasonId: 'ps1-s1', target: 150, allocated: 150 }, // past — fulfilled
+  { speciesId: 'sp8', seasonId: 'ps1-s2', target: 100, allocated: 100 },
+  { speciesId: 'sp8', seasonId: 'ps2-s1', target: 100, allocated: 100 }, // past — fulfilled
+  { speciesId: 'sp8', seasonId: 'ps2-s2', target: 50, allocated: 0 },
 
-  // sp9 'Ohi'a Lehua — partial
-  { speciesId: 'sp9', siteId: 'ps1', allocated: 100, target: 200 },
-  { speciesId: 'sp9', siteId: 'ps2', allocated: 60, target: 120 },
-  { speciesId: 'sp9', siteId: 'ps3', allocated: 30, target: 80 },
-  { speciesId: 'sp9', siteId: 'ps4', allocated: 10, target: 50 },
-  { speciesId: 'sp9', siteId: 'ps5', allocated: 0, target: 50 },
+  // --- sp9 'Ohi'a Lehua (inventory 350) ---
+  { speciesId: 'sp9', seasonId: 'ps1-s2', target: 200, allocated: 100 },
+  { speciesId: 'sp9', seasonId: 'ps2-s2', target: 120, allocated: 60 },
+  { speciesId: 'sp9', seasonId: 'ps3-s2', target: 80, allocated: 30 },
+  { speciesId: 'sp9', seasonId: 'ps4-s1', target: 50, allocated: 10 },
+  { speciesId: 'sp9', seasonId: 'ps5-s1', target: 50, allocated: 0 },
 
-  // sp10 Mamane — zero allocation (target 180, inventory 90)
-  { speciesId: 'sp10', siteId: 'ps1', allocated: 0, target: 60 },
-  { speciesId: 'sp10', siteId: 'ps2', allocated: 0, target: 40 },
-  { speciesId: 'sp10', siteId: 'ps3', allocated: 0, target: 30 },
-  { speciesId: 'sp10', siteId: 'ps4', allocated: 0, target: 30 },
-  { speciesId: 'sp10', siteId: 'ps5', allocated: 0, target: 20 },
+  // --- sp10 Mamane (inventory 90) ---
+  { speciesId: 'sp10', seasonId: 'ps1-s3', target: 60, allocated: 0 },
+  { speciesId: 'sp10', seasonId: 'ps2-s3', target: 40, allocated: 0 },
+  { speciesId: 'sp10', seasonId: 'ps3-s2', target: 30, allocated: 0 },
+  { speciesId: 'sp10', seasonId: 'ps4-s2', target: 30, allocated: 0 },
+  { speciesId: 'sp10', seasonId: 'ps5-s1', target: 20, allocated: 0 },
 ];
 
 export const nurseryInventory: NurserySpeciesInventory[] = [
-  // sp1 A'ali'i — 600 total (fulfilled)
+  // sp1 A'ali'i — 600 total
   { speciesId: 'sp1', nurseryId: 'n1', quantity: 300 },
   { speciesId: 'sp1', nurseryId: 'n2', quantity: 200 },
   { speciesId: 'sp1', nurseryId: 'n3', quantity: 100 },
 
-  // sp2 'Aweoweo — 250 total (partial, target 400)
+  // sp2 'Aweoweo — 250 total
   { speciesId: 'sp2', nurseryId: 'n1', quantity: 120 },
   { speciesId: 'sp2', nurseryId: 'n2', quantity: 130 },
 
-  // sp3 Pili — 80 total (gap, target 300)
+  // sp3 Pili — 80 total
   { speciesId: 'sp3', nurseryId: 'n1', quantity: 50 },
   { speciesId: 'sp3', nurseryId: 'n3', quantity: 30 },
 
-  // sp4 Wiliwili — 220 total (fulfilled, target 200)
+  // sp4 Wiliwili — 220 total
   { speciesId: 'sp4', nurseryId: 'n1', quantity: 100 },
   { speciesId: 'sp4', nurseryId: 'n2', quantity: 70 },
   { speciesId: 'sp4', nurseryId: 'n3', quantity: 50 },
 
-  // sp5 Naio — 180 total (partial, target 300)
+  // sp5 Naio — 180 total
   { speciesId: 'sp5', nurseryId: 'n2', quantity: 100 },
   { speciesId: 'sp5', nurseryId: 'n3', quantity: 80 },
 
-  // sp6 'Ilima — 200 total (over-allocated at 180, target 150)
+  // sp6 'Ilima — 200 total
   { speciesId: 'sp6', nurseryId: 'n1', quantity: 120 },
   { speciesId: 'sp6', nurseryId: 'n2', quantity: 80 },
 
-  // sp7 Ma'o — 60 total (gap, target 250)
+  // sp7 Ma'o — 60 total
   { speciesId: 'sp7', nurseryId: 'n3', quantity: 60 },
 
-  // sp8 Koa — 320 total (fulfilled, target 300)
+  // sp8 Koa — 320 total
   { speciesId: 'sp8', nurseryId: 'n1', quantity: 150 },
   { speciesId: 'sp8', nurseryId: 'n2', quantity: 100 },
   { speciesId: 'sp8', nurseryId: 'n3', quantity: 70 },
 
-  // sp9 'Ohi'a Lehua — 350 total (partial, target 500)
+  // sp9 'Ohi'a Lehua — 350 total
   { speciesId: 'sp9', nurseryId: 'n1', quantity: 150 },
   { speciesId: 'sp9', nurseryId: 'n2', quantity: 120 },
   { speciesId: 'sp9', nurseryId: 'n3', quantity: 80 },
 
-  // sp10 Mamane — 90 total (zero allocated, target 180)
+  // sp10 Mamane — 90 total
   { speciesId: 'sp10', nurseryId: 'n1', quantity: 50 },
   { speciesId: 'sp10', nurseryId: 'n2', quantity: 40 },
 ];
 
-// --- Planting Seasons (for nursery planning detail panel) ---
-
-export interface NurseryPlanningSeason {
-  id: string;
-  name: string;
-  startDate: string;
-  endDate: string;
-  siteId: string;
-  nurseryId: string;
-}
-
-export const nurseryPlanningSeasons: NurseryPlanningSeason[] = [
-  { id: 'season-2024',      name: 'Feb - Nov 2024',    startDate: '2024-02-01', endDate: '2024-11-30', siteId: 'ps1', nurseryId: 'n1' },
-  { id: 'season-active',    name: 'Mar - Oct 2026',    startDate: '2026-03-01', endDate: '2026-10-31', siteId: 'ps2', nurseryId: 'n2' },
-  { id: 'season-future',    name: 'Nov - Mar 2026-27', startDate: '2026-11-12', endDate: '2027-03-23', siteId: 'ps3', nurseryId: 'n3' },
-  { id: 'season-ps2-2027',  name: 'Jan - Jun 2027',    startDate: '2027-01-01', endDate: '2027-06-30', siteId: 'ps2', nurseryId: 'n2' },
-];
-
-function formatDateMDY(dateStr: string): string {
-  const [year, month, day] = dateStr.split('-');
-  return `${parseInt(month)}/${parseInt(day)}/${year}`;
-}
-
-export function getSeasonDisplayLabel(season: NurseryPlanningSeason): string {
-  const site = plantingSites.find((s) => s.id === season.siteId);
-  const siteName = site?.name ?? '';
-  return `${siteName} - ${season.name} (${formatDateMDY(season.startDate)} - ${formatDateMDY(season.endDate)})`;
-}
-
-export interface SeasonAllocation {
-  speciesId: string;
-  seasonId: string;
-  allocated: number;
-  target: number;
-}
-
-export const initialSeasonAllocations: SeasonAllocation[] = [
-  // season-2024 — Pu'u Wa'awa'a (ps1, Waimea Nursery)
-  { speciesId: 'sp1',  seasonId: 'season-2024', allocated: 200, target: 250 },
-  { speciesId: 'sp2',  seasonId: 'season-2024', allocated: 80,  target: 150 },
-  { speciesId: 'sp3',  seasonId: 'season-2024', allocated: 0,   target: 100 },
-  { speciesId: 'sp4',  seasonId: 'season-2024', allocated: 80,  target: 80  },
-  { speciesId: 'sp5',  seasonId: 'season-2024', allocated: 50,  target: 100 },
-  { speciesId: 'sp6',  seasonId: 'season-2024', allocated: 100, target: 120 },
-  { speciesId: 'sp8',  seasonId: 'season-2024', allocated: 150, target: 150 },
-
-  // season-active — Mauna Meadows (ps2, Kona Nursery)
-  { speciesId: 'sp1',  seasonId: 'season-active', allocated: 300, target: 300 },
-  { speciesId: 'sp2',  seasonId: 'season-active', allocated: 150, target: 250 },
-  { speciesId: 'sp3',  seasonId: 'season-active', allocated: 60,  target: 200 },
-  { speciesId: 'sp4',  seasonId: 'season-active', allocated: 150, target: 150 },
-  { speciesId: 'sp5',  seasonId: 'season-active', allocated: 100, target: 180 },
-  { speciesId: 'sp6',  seasonId: 'season-active', allocated: 120, target: 100 },
-  { speciesId: 'sp7',  seasonId: 'season-active', allocated: 40,  target: 150 },
-  { speciesId: 'sp8',  seasonId: 'season-active', allocated: 200, target: 200 },
-  { speciesId: 'sp9',  seasonId: 'season-active', allocated: 150, target: 300 },
-  { speciesId: 'sp10', seasonId: 'season-active', allocated: 0,   target: 100 },
-
-  // season-future — Ocean View Lands (ps3, Hilo Nursery)
-  { speciesId: 'sp1',  seasonId: 'season-future', allocated: 200, target: 200 },
-  { speciesId: 'sp2',  seasonId: 'season-future', allocated: 100, target: 150 },
-  { speciesId: 'sp3',  seasonId: 'season-future', allocated: 20,  target: 100 },
-  { speciesId: 'sp4',  seasonId: 'season-future', allocated: 50,  target: 50  },
-  { speciesId: 'sp5',  seasonId: 'season-future', allocated: 30,  target: 120 },
-  { speciesId: 'sp6',  seasonId: 'season-future', allocated: 60,  target: 50  },
-  { speciesId: 'sp7',  seasonId: 'season-future', allocated: 20,  target: 100 },
-  { speciesId: 'sp8',  seasonId: 'season-future', allocated: 100, target: 100 },
-  { speciesId: 'sp9',  seasonId: 'season-future', allocated: 50,  target: 200 },
-  { speciesId: 'sp10', seasonId: 'season-future', allocated: 0,   target: 80  },
-
-  // season-ps2-2027 — Mauna Meadows second season (ps2, Kona Nursery)
-  // Species duplicated from season-active to demonstrate multi-season rows
-  { speciesId: 'sp1',  seasonId: 'season-ps2-2027', allocated: 0,   target: 150 },
-  { speciesId: 'sp5',  seasonId: 'season-ps2-2027', allocated: 0,   target: 80  },
-  { speciesId: 'sp8',  seasonId: 'season-ps2-2027', allocated: 100, target: 100 },
-  { speciesId: 'sp9',  seasonId: 'season-ps2-2027', allocated: 0,   target: 200 },
-  { speciesId: 'sp10', seasonId: 'season-ps2-2027', allocated: 0,   target: 60  },
-];
-
-export function getSeasonAllocationsForSpecies(speciesId: string): SeasonAllocation[] {
-  return initialSeasonAllocations.filter((a) => a.speciesId === speciesId);
-}
-
 // --- Helpers ---
 
-export function getSpeciesById(id: string): Species | undefined {
-  return species.find((s) => s.id === id);
+export function getSiteSeasonTargets(speciesId: string): SiteSeasonTarget[] {
+  return siteSeasonTargets.filter((t) => t.speciesId === speciesId);
 }
 
-export function getAllocationsForSpecies(
-  allAllocations: SiteAllocation[],
-  speciesId: string
-): SiteAllocation[] {
-  return allAllocations.filter((a) => a.speciesId === speciesId);
+export function getSiteSeasonTarget(speciesId: string, seasonId: string): SiteSeasonTarget | undefined {
+  return siteSeasonTargets.find((t) => t.speciesId === speciesId && t.seasonId === seasonId);
 }
 
 export function getNurseryInventoryForSpecies(speciesId: string): NurserySpeciesInventory[] {
@@ -293,21 +228,17 @@ export function getTotalInventoryForSpecies(speciesId: string): number {
 }
 
 export function getNurseryNamesForSpecies(speciesId: string): string[] {
-  const invItems = getNurseryInventoryForSpecies(speciesId);
-  return invItems.map((inv) => {
+  return getNurseryInventoryForSpecies(speciesId).map((inv) => {
     const nursery = nurseries.find((n) => n.id === inv.nurseryId);
     return nursery?.name ?? inv.nurseryId;
   });
 }
 
-export function hasInventoryGap(
-  allAllocations: SiteAllocation[],
-  speciesId: string
-): boolean {
-  const totalTarget = getAllocationsForSpecies(allAllocations, speciesId).reduce(
-    (sum, a) => sum + a.target,
-    0
-  );
-  const totalInventory = getTotalInventoryForSpecies(speciesId);
-  return totalInventory < totalTarget;
+/** Returns the site IDs that have a target > 0 for this species (across any season). */
+export function getSiteIdsForSpecies(speciesId: string): string[] {
+  const targets = getSiteSeasonTargets(speciesId).filter((t) => t.target > 0);
+  const seasonIds = [...new Set(targets.map((t) => t.seasonId))];
+  return [...new Set(
+    seasonIds.map((sid) => nurseryPlanningSeasons.find((s) => s.id === sid)?.siteId).filter(Boolean) as string[]
+  )];
 }

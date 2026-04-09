@@ -1,9 +1,29 @@
-import { Routes, Route, Navigate } from 'react-router';
+import { Routes, Route, Navigate, useParams } from 'react-router';
+import { Box, Typography } from '@mui/material';
 import { AppShell } from '@/components/navigation';
 import type { NavSection } from '@/components/navigation';
 import { PlanningHome } from './PlanningHome';
 import { NurseryPlanning } from './NurseryPlanning';
-import { PlantingSeasons } from './PlantingSeasons';
+import { PlantingSeasons, WithdrawalLogView } from './PlantingSeasons';
+import { PlanningProvider } from './PlanningContext';
+
+function PlantingSeasonDetail() {
+  const { seasonId } = useParams<{ seasonId: string }>();
+  return <PlantingSeasons initialSeasonId={seasonId} />;
+}
+
+function SeedlingsInventory() {
+  return (
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h5" sx={{ fontWeight: 600, color: '#3A4445' }}>
+        Seedlings Inventory
+      </Typography>
+      <Typography variant="body2" sx={{ color: '#6B7165', mt: 1 }}>
+        Coming soon.
+      </Typography>
+    </Box>
+  );
+}
 import {
   HomeOutlined as HomeIcon,
   SyncAlt as SpeciesIcon,
@@ -47,7 +67,7 @@ const sections: NavSection[] = [
         children: [
           { label: 'Inventory', path: `${BASE}/seedlings-inventory` },
           { label: 'Nursery Planning', path: `${BASE}/nursery-planning` },
-          { label: 'Withdrawal Log', path: `${BASE}/withdrawal-log` },
+          { label: 'Withdrawals', path: `${BASE}/withdrawal-log` },
         ],
       },
     ],
@@ -70,14 +90,19 @@ const sections: NavSection[] = [
 
 export default function PlantingPlanningPrototype() {
   return (
-    <AppShell sections={sections} alwaysExpanded>
-      <Routes>
-        <Route index element={<PlanningHome />} />
-        <Route path="dashboard" element={<PlanningHome />} />
-        <Route path="nursery-planning" element={<NurseryPlanning />} />
-        <Route path="planting-seasons" element={<PlantingSeasons />} />
-        <Route path="*" element={<Navigate to="" replace />} />
-      </Routes>
-    </AppShell>
+    <PlanningProvider>
+      <AppShell sections={sections} alwaysExpanded>
+        <Routes>
+          <Route index element={<PlanningHome />} />
+          <Route path="dashboard" element={<PlanningHome />} />
+          <Route path="seedlings-inventory" element={<SeedlingsInventory />} />
+          <Route path="nursery-planning" element={<NurseryPlanning />} />
+          <Route path="planting-seasons" element={<PlantingSeasons />} />
+          <Route path="planting-seasons/:seasonId" element={<PlantingSeasonDetail />} />
+          <Route path="withdrawal-log" element={<WithdrawalLogView />} />
+          <Route path="*" element={<Navigate to="" replace />} />
+        </Routes>
+      </AppShell>
+    </PlanningProvider>
   );
 }
