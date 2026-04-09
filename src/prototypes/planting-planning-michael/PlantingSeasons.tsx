@@ -801,7 +801,7 @@ function SubstratumSection({
         </Typography>
       </Box>
 
-      <Box sx={{ border: `1px solid ${BORDER_COLOR}`, borderRadius: 1, overflow: 'hidden' }}>
+      <Box sx={{ border: `1px solid ${BORDER_COLOR}`, borderRadius: 1, overflow: 'hidden', bgcolor: '#fff' }}>
         <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
           <TableHead>
             <TableRow sx={{ bgcolor: HEADER_BG }}>
@@ -996,18 +996,11 @@ function ViewPlantingSeasonView({
   type WithdrawalStep = 'details' | 'batches' | 'photos';
   const [withdrawalStep, setWithdrawalStep] = useState<WithdrawalStep>('details');
   const [pendingWithdrawQty, setPendingWithdrawQty] = useState(0);
-  const [editingName, setEditingName] = useState(false);
-  const [draftName, setDraftName] = useState(season.name);
   const [editingDates, setEditingDates] = useState(false);
   const [draftStart, setDraftStart] = useState(season.startDate);
   const [draftEnd, setDraftEnd] = useState(season.endDate);
-  const [summaryOpen, setSummaryOpen] = useState(false);
-
-  const commitName = () => {
-    if (draftName.trim()) onSeasonUpdate({ ...season, name: draftName.trim() });
-    else setDraftName(season.name);
-    setEditingName(false);
-  };
+  type ViewMode = 'strata' | 'species';
+  const [viewMode, setViewMode] = useState<ViewMode>('strata');
 
   const commitDates = () => {
     onSeasonUpdate({ ...season, startDate: draftStart, endDate: draftEnd });
@@ -1074,7 +1067,8 @@ function ViewPlantingSeasonView({
   const totalGoal = speciesSummary.reduce((s, r) => s + r.target, 0);
   const totalWithdrawn = speciesSummary.reduce((s, r) => s + r.withdrawn, 0);
   const totalRemaining = totalGoal - totalWithdrawn;
-  const siteStrata = strata.filter((s) => s.siteId === (season.siteId ?? 'ps1'));
+  const filteredStrata = strata.filter((s) => s.siteId === season.siteId);
+  const siteStrata = filteredStrata.length > 0 ? filteredStrata : strata;
 
   if (withdrawTarget) {
     const sp = speciesList.find((s) => s.id === withdrawTarget.speciesId);
@@ -1160,29 +1154,9 @@ function ViewPlantingSeasonView({
       </Box>
 
       {/* Season header */}
-      {editingName ? (
-        <TextField
-          value={draftName}
-          onChange={(e) => setDraftName(e.target.value)}
-          onBlur={commitName}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') commitName();
-            if (e.key === 'Escape') { setDraftName(season.name); setEditingName(false); }
-          }}
-          autoFocus
-          size="small"
-          sx={{ mb: 0.5 }}
-        />
-      ) : (
-        <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-          <Typography variant="h5" sx={{ fontWeight: 600, color: TEXT_PRIMARY }}>
-            {season.name}
-          </Typography>
-          <IconButton size="small" onClick={() => { setDraftName(season.name); setEditingName(true); }} sx={{ color: TEXT_SECONDARY, p: '2px' }}>
-            <EditIcon sx={{ fontSize: 16 }} />
-          </IconButton>
-        </Box>
-      )}
+      <Typography variant="h5" sx={{ fontWeight: 600, color: TEXT_PRIMARY, mb: 0.5 }}>
+        {formatSeasonName(season.startDate, season.endDate)}
+      </Typography>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, mb: 2, flexWrap: 'wrap' }}>
         {editingDates ? (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -1223,20 +1197,39 @@ function ViewPlantingSeasonView({
         )}
       </Box>
 
-      {/* Compact stats chips */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: summaryOpen ? 1 : 3, flexWrap: 'wrap' }}>
+      {/* Stats chips */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, flexWrap: 'wrap' }}>
         <Chip label={`${speciesSummary.length} species`} size="small" variant="outlined" sx={{ color: TEXT_PRIMARY, borderColor: BORDER_COLOR }} />
         <Chip label={`Goal: ${totalGoal.toLocaleString()}`} size="small" variant="outlined" sx={{ color: TEXT_PRIMARY, borderColor: BORDER_COLOR }} />
         <Chip label={`Withdrawn for Planting: ${totalWithdrawn.toLocaleString()}`} size="small" variant="outlined" sx={{ color: totalWithdrawn > 0 ? COLOR_FULFILLED : TEXT_SECONDARY, borderColor: BORDER_COLOR }} />
         <Chip label={`Remaining: ${totalRemaining.toLocaleString()}`} size="small" variant="outlined" sx={{ color: totalRemaining > 0 ? COLOR_PARTIAL : COLOR_FULFILLED, borderColor: BORDER_COLOR }} />
-        <IconButton size="small" onClick={() => setSummaryOpen((v) => !v)} sx={{ color: TEXT_SECONDARY, ml: 0.5 }}>
-          {summaryOpen ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-        </IconButton>
       </Box>
 
-      {/* Expandable species summary table */}
-      <Collapse in={summaryOpen}>
-        <Box sx={{ border: `1px solid ${BORDER_COLOR}`, borderRadius: 1, mb: 3, overflow: 'hidden' }}>
+      {/* Segmented control */}
+      <Box sx={{ display: 'flex', gap: 0, mb: 3, border: `1px solid ${BORDER_COLOR}`, borderRadius: 1, overflow: 'hidden', width: 'fit-content' }}>
+        {(['strata', 'species'] as const).map((mode) => (
+          <Box
+            key={mode}
+            onClick={() => setViewMode(mode)}
+            sx={{
+              px: 2.5, py: 0.75, cursor: 'pointer', userSelect: 'none',
+              bgcolor: viewMode === mode ? PRIMARY_GREEN : '#fff',
+              color: viewMode === mode ? '#fff' : TEXT_SECONDARY,
+              fontWeight: viewMode === mode ? 600 : 400,
+              fontSize: '1rem',
+              borderRight: mode === 'strata' ? `1px solid ${BORDER_COLOR}` : 'none',
+              '&:hover': { bgcolor: viewMode === mode ? PRIMARY_GREEN : HEADER_BG },
+              transition: 'background-color 0.15s',
+            }}
+          >
+            {mode === 'strata' ? 'Strata View' : 'Species Summary'}
+          </Box>
+        ))}
+      </Box>
+
+      {/* Species summary table */}
+      {viewMode === 'species' && (
+        <Box sx={{ border: `1px solid ${BORDER_COLOR}`, borderRadius: 1, mb: 3, overflow: 'hidden', bgcolor: '#fff' }}>
           <Table size="small">
             <TableHead>
               <TableRow sx={{ bgcolor: HEADER_BG }}>
@@ -1273,10 +1266,10 @@ function ViewPlantingSeasonView({
             </TableBody>
           </Table>
         </Box>
-      </Collapse>
+      )}
 
       {/* Stratum sections */}
-      <Stack spacing={4}>
+      {viewMode === 'strata' && <Stack spacing={4}>
         {siteStrata.map((stratum) => {
           const stratumSubstrata = substrata.filter((s) => s.stratumId === stratum.id);
           const activeSubstrata = stratumSubstrata.filter(
@@ -1342,7 +1335,7 @@ function ViewPlantingSeasonView({
             </Box>
           );
         })}
-      </Stack>
+      </Stack>}
 
       {/* Change History */}
       <Box sx={{ mt: 4, border: `1px solid ${BORDER_COLOR}`, borderRadius: 1, bgcolor: '#fff' }}>
